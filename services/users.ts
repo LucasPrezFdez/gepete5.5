@@ -1,7 +1,7 @@
 import type { ActivityEvent, GameList, Profile, ProfileStats, Review } from "@/data/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import { profileFromRow, reviewFromRow } from "@/services/community";
-import { listFromRow, syncDefaultProfileLists } from "@/services/lists";
+import { dedupeListsByTitle, listFromRow, syncDefaultProfileLists } from "@/services/lists";
 
 export type PublicProfileActivity = Omit<ActivityEvent, "user" | "review"> & {
   game?: ActivityEvent["game"] | null;
@@ -86,7 +86,7 @@ export async function getPublicUserProfile(username: string): Promise<PublicUser
       favoritePlatforms: mappedProfile.favoritePlatforms,
       favoriteGenres: mappedProfile.favoriteGenres
     },
-    lists: (lists.data ?? []).map(listFromRow),
+    lists: dedupeListsByTitle((lists.data ?? []).map(listFromRow)),
     reviews: (reviews.data ?? []).map(reviewFromRow),
     activity: (activity.data ?? []).map((item: any) => ({
       id: item.id,

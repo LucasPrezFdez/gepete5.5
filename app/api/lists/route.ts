@@ -2,7 +2,7 @@
 import type { Game } from "@/data/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import { ensureProfile, getUserFromRequest, recordActivity } from "@/services/community";
-import { getAvailableListSlug, listFromRow, upsertListItems } from "@/services/lists";
+import { dedupeListsByTitle, getAvailableListSlug, listFromRow, upsertListItems } from "@/services/lists";
 import { slugify } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ lists: (data ?? []).filter((row: any) => row.profiles).map(listFromRow) });
+  return NextResponse.json({ lists: dedupeListsByTitle((data ?? []).filter((row: any) => row.profiles).map(listFromRow)) });
 }
 
 export async function POST(request: Request) {

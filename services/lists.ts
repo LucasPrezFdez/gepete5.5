@@ -73,12 +73,14 @@ export async function syncDefaultProfileLists(
 
 export function dedupeListsByTitle<T extends { title: string; createdAt?: string | null }>(lists: T[]) {
   const seen = new Set<string>();
+  const reservedTitles = new Set(DEFAULT_PROFILE_LISTS.map((list) => list.title.toLowerCase()));
   return lists
     .slice()
     .sort((left, right) => getTime(left.createdAt) - getTime(right.createdAt))
     .filter((list) => {
       const key = list.title.trim().toLowerCase();
-      if (!key || seen.has(key)) return false;
+      if (!reservedTitles.has(key)) return true;
+      if (seen.has(key)) return false;
       seen.add(key);
       return true;
     })

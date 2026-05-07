@@ -68,7 +68,7 @@ export default async function UserPage({ params }: { params: Params }) {
         {profile.lists.length ? (
           <div className="grid gap-4 md:grid-cols-3">
             {profile.lists.map((list) => (
-              <ListCard key={list.slug} slug={list.slug} title={list.title} description={list.description ?? ""} likes={list.likesCount} games={list.items.map((item) => item.game.title)} />
+              <ListCard key={list.slug} slug={list.slug} title={list.title} description={list.description ?? ""} likes={list.likesCount} games={list.items.map((item) => ({ title: item.game.title, coverUrl: item.game.coverUrl }))} />
             ))}
           </div>
         ) : (

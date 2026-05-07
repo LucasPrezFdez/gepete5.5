@@ -1,0 +1,44 @@
+
+> gameindex@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.15
+   - Local:        http://localhost:3000
+   - Network:      http://172.31.28.105:3000
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 1735ms
+ ○ Compiling /games/[slug] ...
+ ✓ Compiled /games/[slug] in 3.2s (710 modules)
+ GET /games/grand-theft-auto-v 200 in 6287ms
+ ✓ Compiled /api/games/[slug]/community in 327ms (730 modules)
+ GET /api/games/grand-theft-auto-v/community 200 in 1285ms
+ ✓ Compiled /games/[slug]/reviews in 220ms (729 modules)
+ GET /games/grand-theft-auto-v/reviews 200 in 1238ms
+ GET /games/grand-theft-auto-v/reviews 200 in 692ms
+ ✓ Compiled in 283ms (272 modules)
+ ✓ Compiled in 152ms (272 modules)
+ ✓ Compiled in 163ms (272 modules)
+ ✓ Compiled in 163ms (272 modules)
+ ✓ Compiled in 164ms (272 modules)
+ ✓ Compiled in 218ms (272 modules)
+ ✓ Compiled in 119ms (272 modules)
+ ✓ Compiled in 570ms (272 modules)
+ ✓ Compiled in 213ms (272 modules)
+ ✓ Compiled in 257ms (272 modules)
+ ✓ Compiled in 203ms (272 modules)
+ ✓ Compiled in 215ms (272 modules)
+ ✓ Compiled in 161ms (272 modules)
+ ✓ Compiled in 156ms (272 modules)
+ ✓ Compiled in 163ms (272 modules)
+ ✓ Compiled in 186ms (272 modules)
+ ✓ Compiled in 126ms (272 modules)
+ ✓ Compiled in 127ms (272 modules)
+ ✓ Compiled in 131ms (272 modules)
+ ✓ Compiled in 147ms (272 modules)
+ ✓ Compiled in 112ms (272 modules)
+ ✓ Compiled in 854ms (272 modules)
+ ✓ Compiled in 359ms (272 modules)
+ ✓ Compiled in 143ms (272 modules)
+ ✓ Compiled in 171ms (272 modules)

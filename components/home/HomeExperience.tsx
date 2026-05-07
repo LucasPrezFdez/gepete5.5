@@ -1,0 +1,1729 @@
+﻿"use client";
+
+import {
+  createContext,
+  type Dispatch,
+  type PointerEvent,
+  type ReactNode,
+  type SetStateAction,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
+import Link from "next/link";
+import type { Game } from "@/data/games";
+import { communityLists } from "@/data/community";
+import { arcadeTheme, type HeadlinePart, type HomeTheme } from "@/lib/theme";
+import { formatCompactNumber, slugify } from "@/lib/utils";
+
+type EnhancedGame = Game & { accent: string };
+type Platform = {
+  slug: string;
+  name: string;
+  icon: string;
+  count: number;
+};
+type CommunityList = (typeof communityLists)[number] & { curator?: string };
+
+const ThemeContext = createContext<HomeTheme | null>(null);
+
+function useTheme() {
+  const theme = useContext(ThemeContext);
+  if (!theme) {
+    throw new Error("HomeExperience debe renderizarse dentro de ThemeContext.");
+  }
+  return theme;
+}
+
+const accentPool = ["#3B82F6", "#8B5CF6", "#A3E635", "#FB7185", "#60A5FA", "#C4B5FD"];
+
+function enrichGames(games: Game[]): EnhancedGame[] {
+  return games.map((game, index) => ({
+    ...game,
+    accent: accentPool[index % accentPool.length]
+  }));
+}
+
+function platformIcon(name: string) {
+  const value = name.toLowerCase();
+  if (value.includes("pc")) return "?";
+  if (value.includes("playstation")) return "?";
+  if (value.includes("xbox")) return "?";
+  if (value.includes("switch") || value.includes("nintendo")) return "?";
+  if (value.includes("mobile")) return "?";
+  return "?";
+}
+
+function buildPlatforms(games: EnhancedGame[]): Platform[] {
+  const counts = new Map<string, number>();
+  for (const game of games) {
+    for (const platform of game.platforms) {
+      counts.set(platform, (counts.get(platform) ?? 0) + 1);
+    }
+  }
+
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([name, count]) => ({
+      slug: slugify(name),
+      name,
+      count,
+      icon: platformIcon(name)
+    }));
+}
+
+function useWindowScrollY() {
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const onScroll = () => setScrollY(window.scrollY);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return scrollY;
+}
+
+function useInView<T extends HTMLElement = HTMLDivElement>() {
+  const ref = useRef<T | null>(null);
+  const [inView, setInView] = useState(false);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { threshold: 0.15 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, inView] as const;
+}
+
+export function HomeExperience({
+  initialGames,
+  theme = arcadeTheme
+}: {
+  initialGames?: Game[];
+  theme?: HomeTheme;
+}) {
+  const scrollY = useWindowScrollY();
+  const games = useMemo(() => enrichGames(initialGames ?? []), [initialGames]);
+  const platforms = useMemo(() => buildPlatforms(games), [games]);
+  const lists = communityLists as CommunityList[];
+  const [query, setQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [openGame, setOpenGame] = useState<EnhancedGame | null>(null);
+
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    let result = games;
+
+    if (normalized.length >= 2) {
+      result = result.filter((game) =>
+        [
+          game.title,
+          game.developer,
+          game.publisher,
+          String(game.year),
+          ...game.genres,
+          ...game.platforms
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalized)
+      );
+    }
+
+    if (activeFilter !== "all") {
+      result = result.filter((game) =>
+        game.platforms.some((platform) => platform.toLowerCase().includes(activeFilter))
+      );
+    }
+
+    return result;
+  }, [activeFilter, games, query]);
+
+  const trending = filtered.slice(0, 6);
+  const topRated = [...filtered]
+    .filter((game) => game.userScore > 0)
+    .sort((a, b) => b.userScore - a.userScore)
+    .slice(0, 8);
+  const upcoming = filtered.filter((game) => game.status !== "released");
+  const newReleases = [...filtered]
+    .filter((game) => game.userScore > 0)
+    .sort((a, b) => b.year - a.year)
+    .slice(0, 8);
+
+  const isSearching = query.trim().length >= 2 || activeFilter !== "all";
+
+  if (games.length === 0) {
+    return (
+      <ThemeContext.Provider value={theme}>
+        <section className="container-page -mt-20 grid min-h-screen place-items-center pt-20 text-center">
+          <div className="max-w-xl rounded-3xl border border-white/10 bg-white/5 p-8">
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-electric">API requerida</p>
+            <h1 className="mt-3 text-4xl font-black">No hay juegos para mostrar</h1>
+            <p className="mt-3 text-muted">Configura IGDB o RAWG en .env para cargar el cat??logo desde la API.</p>
+          </div>
+        </section>
+      </ThemeContext.Provider>
+    );
+  }
+
+  return (
+    <ThemeContext.Provider value={theme}>
+      <div
+        className="relative -mt-20 isolate min-h-screen overflow-hidden pt-20"
+        style={{
+          background: theme.bg,
+          color: theme.fg,
+          fontFamily: theme.fontBody
+        }}
+      >
+        <div className="pointer-events-none fixed inset-0 z-0">
+          <AnimatedMesh />
+          <NoiseOverlay opacity={theme.noiseOpacity} />
+        </div>
+
+        <main className="relative z-10">
+          <Hero
+            activeFilter={activeFilter}
+            games={games}
+            query={query}
+            scrollY={scrollY}
+            setActiveFilter={setActiveFilter}
+            setQuery={setQuery}
+          />
+
+          <Marquee
+            items={games.slice(0, 6).map((game) => ({
+              label: game.title.toUpperCase(),
+              value: game.userScore ? game.userScore.toFixed(1) : "API"
+            }))}
+            speed={45}
+          />
+
+          {isSearching ? (
+            <Section eyebrow="Resultados" title={`${filtered.length} juegos encontrados`}>
+              <Grid games={filtered} />
+            </Section>
+          ) : (
+            <>
+              <Section eyebrow="Tendencias" href="/games" title="Lo que est? jugando todo el mundo">
+                <DragCarousel>
+                  {trending.map((game, index) => (
+                    <div key={game.slug} style={{ flex: "0 0 240px", scrollSnapAlign: "start" }}>
+                      <TiltCard game={game} priority={index < 4} />
+                    </div>
+                  ))}
+                </DragCarousel>
+              </Section>
+
+              <Section eyebrow="Ranking vivo" href="/rankings/top-250" title="Mejores valorados">
+                <RankingList games={topRated} onOpen={setOpenGame} />
+              </Section>
+
+              <Section eyebrow="Hype" href="/games??status=upcoming" title="Próximos lanzamientos">
+                <Grid games={upcoming.length ? upcoming : games.slice(0, 4)} />
+              </Section>
+
+              <Section eyebrow="Recientes" href="/games??sort=recent" title="Nuevos lanzamientos">
+                <DragCarousel>
+                  {newReleases.map((game) => (
+                    <div key={game.slug} style={{ flex: "0 0 240px", scrollSnapAlign: "start" }}>
+                      <TiltCard game={game} />
+                    </div>
+                  ))}
+                </DragCarousel>
+              </Section>
+
+              <PlatformSection platforms={platforms} />
+
+              <Section eyebrow="Comunidad" href="/lists/rpg-turnos-imprescindibles" title="Listas que est?n de moda">
+                <ListsGrid games={games} lists={lists} />
+              </Section>
+
+              <FinalCTA games={games} />
+            </>
+          )}
+        </main>
+
+        {openGame && <GameModal game={openGame} onClose={() => setOpenGame(null)} />}
+
+        <HomeStyles />
+      </div>
+    </ThemeContext.Provider>
+  );
+}
+
+function AnimatedMesh() {
+  const theme = useTheme();
+  const [time, setTime] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const tick = () => {
+      setTime((performance.now() - start) / 1000);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const blobs = theme.meshBlobs
+    .map((blob, index) => {
+      const x = blob.x + Math.sin(time * blob.speed + index) * blob.range;
+      const y = blob.y + Math.cos(time * blob.speed * 0.8 + index * 1.3) * blob.range;
+      return `radial-gradient(circle at ${x}% ${y}%, ${blob.color} 0%, transparent ${blob.size}%)`;
+    })
+    .join(",");
+
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        background: blobs,
+        filter: "blur(40px) saturate(1.4)",
+        opacity: 0.65
+      }}
+    />
+  );
+}
+
+function NoiseOverlay({ opacity }: { opacity: number }) {
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        opacity,
+        mixBlendMode: "overlay",
+        backgroundImage:
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E\")"
+      }}
+    />
+  );
+}
+
+function Hero({
+  activeFilter,
+  games,
+  query,
+  scrollY,
+  setActiveFilter,
+  setQuery
+}: {
+  activeFilter: string;
+  games: EnhancedGame[];
+  query: string;
+  scrollY: number;
+  setActiveFilter: Dispatch<SetStateAction<string>>;
+  setQuery: Dispatch<SetStateAction<string>>;
+}) {
+  const theme = useTheme();
+  const featuredGame = games[0];
+  const parallax1 = scrollY * 0.4;
+  const parallax2 = scrollY * 0.25;
+  const parallax3 = scrollY * 0.15;
+  const tags = [
+    { label: "RPG", filter: "all", query: "RPG" },
+    { label: "2026", filter: "all", query: "2026" },
+    { label: "PlayStation", filter: "playstation", query: "" },
+    { label: "Indie", filter: "all", query: "Indie" },
+    { label: "Co-op", filter: "all", query: "Co-op" },
+    { label: "PC", filter: "pc", query: "" },
+    { label: "Switch", filter: "switch", query: "" }
+  ];
+
+  return (
+    <section className="relative px-4 pb-16 pt-8 sm:px-6 lg:px-8 lg:pb-20">
+      <div className="relative mx-auto max-w-[1400px]">
+        <div
+          className="relative overflow-hidden rounded-[32px]"
+          style={{
+            border: `1px solid ${theme.heroBorder}`,
+            background: theme.heroBg,
+            minHeight: "min(85vh, 720px)"
+          }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              transform: `translate3d(0, ${parallax3}px, 0) scale(1.1)`,
+              transition: "opacity .5s"
+            }}
+          >
+            <img
+              alt=""
+              className="h-full w-full object-cover"
+              src={featuredGame.coverUrl}
+              style={{ filter: "blur(2px) saturate(1.2)", opacity: 0.35 }}
+            />
+            <div className="absolute inset-0" style={{ background: theme.heroGradient }} />
+          </div>
+
+          <FloatingDeco scrollY={scrollY} />
+
+          <div
+            className="relative grid gap-10 p-6 sm:p-8 md:p-12 lg:grid-cols-[1.4fr,1fr] lg:p-16"
+            style={{ minHeight: "min(85vh, 720px)" }}
+          >
+            <div
+              className="flex flex-col justify-center"
+              style={{ transform: `translate3d(0, ${parallax2 * -0.3}px, 0)` }}
+            >
+              <div
+                className="mb-6 inline-flex items-center gap-2.5 self-start rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em]"
+                style={{
+                  background: theme.heroEyebrowBg,
+                  color: theme.heroEyebrowFg,
+                  border: `1px solid ${theme.heroEyebrowBorder}`,
+                  fontFamily: theme.fontMono
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: theme.accent,
+                    boxShadow: `0 0 0 4px ${theme.accent}33, 0 0 12px ${theme.accent}`,
+                    animation: "home-pulse 1.8s ease-in-out infinite"
+                  }}
+                />
+                Beta · Videojuegos · Rese?as · Listas
+              </div>
+
+              <h1
+                className="font-black leading-[0.92] tracking-[-0.04em]"
+                style={{
+                  fontSize: "clamp(48px, 7vw, 96px)",
+                  fontFamily: theme.fontDisplay,
+                  color: theme.fg
+                }}
+              >
+                <AnimatedHeadline parts={theme.headlineParts} />
+              </h1>
+
+              <p className="mt-6 max-w-xl text-[17px] leading-relaxed md:text-[19px]" style={{ color: theme.muted }}>
+                Descubre videojuegos, consulta fichas completas, compara puntuaciones, crea listas y organiza tu backlog personal.
+              </p>
+
+              <div className="mt-8 max-w-2xl">
+                <BigSearch games={games} query={query} setQuery={setQuery} />
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                {tags.map((tag, index) => {
+                  const active = activeFilter === tag.filter && (tag.filter !== "all" || query === tag.query);
+                  return (
+                    <button
+                      key={tag.label}
+                      className="rounded-full px-4 py-2 text-sm font-semibold transition"
+                      onClick={() => {
+                        if (tag.filter === "all") {
+                          setActiveFilter("all");
+                          setQuery(query === tag.query ? "" : tag.query);
+                        } else {
+                          const isSame = activeFilter === tag.filter;
+                          setActiveFilter(isSame ? "all" : tag.filter);
+                          setQuery("");
+                        }
+                      }}
+                      style={{
+                        background: active ? theme.tagBgHover : theme.tagBg,
+                        color: active ? theme.tagFgHover : theme.tagFg,
+                        border: `1px solid ${active ? theme.accent : theme.tagBorder}`,
+                        animation: `home-fade-in-up .4s ease-out ${index * 0.05}s both`
+                      }}
+                      type="button"
+                    >
+                      #{tag.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-10 grid max-w-md grid-cols-3 gap-4 pt-6" style={{ borderTop: `1px solid ${theme.border}` }}>
+                <Stat label="Juegos" value="48.2k" />
+                <Stat label="Rese?as" value="1.4M" />
+                <Stat label="Jugadores" value="220k" />
+              </div>
+            </div>
+
+            <div
+              className="relative hidden items-center justify-center lg:flex"
+              style={{ transform: `translate3d(0, ${parallax1 * -0.5}px, 0)` }}
+            >
+              <FeaturedSpotlight game={featuredGame} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AnimatedHeadline({ parts }: { parts: HeadlinePart[] }) {
+  const theme = useTheme();
+
+  return (
+    <span>
+      {parts.map((part, index) => (
+        <span
+          key={`${part.text}-${index}`}
+          style={{
+            display: "inline-block",
+            color: part.accent ? theme.accent : theme.fg,
+            fontStyle: part.italic ? "italic" : "normal",
+            animation: `home-fade-in-up .8s cubic-bezier(.2,.7,.3,1) ${index * 0.08}s both`,
+            marginRight: "0.2em"
+          }}
+        >
+          {part.text}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function FloatingDeco({ scrollY }: { scrollY: number }) {
+  const theme = useTheme();
+
+  return (
+    <>
+      {theme.deco.map((shape, index) => (
+        <div
+          key={`${shape.shape}-${index}`}
+          className="pointer-events-none absolute"
+          style={{
+            left: shape.x,
+            top: shape.y,
+            width: shape.size,
+            height: shape.size,
+            transform: `translate3d(0, ${scrollY * shape.parallax}px, 0)`,
+            animation: `home-float ${4 + index}s ease-in-out infinite ${index * 0.5}s`
+          }}
+        >
+          {shape.shape === "circle" && (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                borderRadius: "50%",
+                background: shape.color,
+                filter: `blur(${shape.blur ?? 0}px)`,
+                opacity: shape.opacity
+              }}
+            />
+          )}
+          {shape.shape === "star" && (
+            <svg
+              fill={shape.color}
+              style={{
+                width: "100%",
+                height: "100%",
+                opacity: shape.opacity,
+                filter: `drop-shadow(0 0 ${shape.blur ?? 0}px ${shape.color})`
+              }}
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 2 L14.5 9 L22 9.5 L16 14.5 L18 22 L12 17.5 L6 22 L8 14.5 L2 9.5 L9.5 9 Z" />
+            </svg>
+          )}
+          {shape.shape === "ring" && (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                borderRadius: "50%",
+                border: `${shape.thickness ?? 4}px solid ${shape.color}`,
+                opacity: shape.opacity
+              }}
+            />
+          )}
+          {shape.shape === "cross" && (
+            <svg
+              fill="none"
+              stroke={shape.color}
+              strokeWidth="3"
+              style={{
+                width: "100%",
+                height: "100%",
+                opacity: shape.opacity,
+                animation: "home-spin-slow 12s linear infinite"
+              }}
+              viewBox="0 0 24 24"
+            >
+              <path d="M4 12 L20 12 M12 4 L12 20" strokeLinecap="round" />
+            </svg>
+          )}
+          {shape.shape === "pill" && (
+            <div
+              style={{
+                width: "100%",
+                height: "40%",
+                borderRadius: 999,
+                background: shape.color,
+                opacity: shape.opacity,
+                transform: `rotate(${shape.rotate ?? 0}deg)`,
+                filter: `blur(${shape.blur ?? 0}px)`
+              }}
+            />
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
+  const theme = useTheme();
+  const [hover, setHover] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
+
+  const onMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    const node = ref.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    setTilt({ rx: (0.5 - y) * 18, ry: (x - 0.5) * 18 });
+  };
+
+  return (
+    <div
+      ref={ref}
+      className="relative"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => {
+        setHover(false);
+        setTilt({ rx: 0, ry: 0 });
+      }}
+      onMouseMove={onMove}
+      style={{ width: 320, perspective: 1200 }}
+    >
+      <div
+        className="absolute -left-3 -top-3 z-20 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest"
+        style={{
+          background: theme.accent,
+          color: theme.btnPrimaryFg,
+          fontFamily: theme.fontMono,
+          transform: "rotate(-6deg) translateZ(80px)",
+          boxShadow: `0 8px 24px ${theme.accent}66`,
+          animation: "home-float 4s ease-in-out infinite"
+        }}
+      >
+        ? Featured
+      </div>
+
+      <div
+        className="relative overflow-hidden rounded-3xl"
+        style={{
+          aspectRatio: "3/4",
+          transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
+          transformStyle: "preserve-3d",
+          transition: "transform .15s",
+          boxShadow: `0 40px 80px -20px ${game.accent}77, 0 0 0 1px ${theme.border}`
+        }}
+      >
+        <img alt={game.title} className="absolute inset-0 h-full w-full object-cover" src={game.coverUrl} />
+        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, transparent 30%, rgba(0,0,0,.85) 100%)" }} />
+
+        <div className="absolute left-4 top-4" style={{ transform: "translateZ(50px)" }}>
+          <div
+            className="flex items-center gap-2 rounded-xl px-3 py-2"
+            style={{
+              background: "rgba(0,0,0,.5)",
+              backdropFilter: "blur(8px)",
+              border: `1px solid ${theme.border}`
+            }}
+          >
+            <span className="text-2xl font-black" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
+              {game.userScore ? game.userScore.toFixed(1) : "?"}
+            </span>
+            <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#fff", opacity: 0.7 }}>
+              <div>Usuarios</div>
+              <div>{formatCompactNumber(game.ratings)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 p-5" style={{ transform: "translateZ(60px)" }}>
+          <div
+            className="mb-1 text-[10px] font-black uppercase tracking-[0.2em]"
+            style={{ color: theme.accent, fontFamily: theme.fontMono }}
+          >
+            {game.developer} · {game.year || "TBA"}
+          </div>
+          <h3
+            className="text-2xl font-black leading-tight"
+            style={{ color: "#fff", fontFamily: theme.fontDisplay, textShadow: "0 2px 12px rgba(0,0,0,.7)" }}
+          >
+            {game.title}
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {game.genres.map((genre) => (
+              <span
+                key={genre}
+                className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                style={{ background: "rgba(255,255,255,.15)", color: "#fff", backdropFilter: "blur(4px)" }}
+              >
+                {genre}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {hover && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ transform: "translateZ(70px)" }}>
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                height: "100%",
+                width: "40%",
+                background: "linear-gradient(120deg, transparent, rgba(255,255,255,.3), transparent)",
+                animation: "home-shine 1.2s ease-out"
+              }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BigSearch({
+  games,
+  query,
+  setQuery
+}: {
+  games: EnhancedGame[];
+  query: string;
+  setQuery: Dispatch<SetStateAction<string>>;
+}) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+  const results = useMemo(() => {
+    if (query.trim().length < 2) return [];
+    return games
+      .filter((game) =>
+        [game.title, game.developer, game.publisher, String(game.year), ...game.genres]
+          .join(" ")
+          .toLowerCase()
+          .includes(query.toLowerCase())
+      )
+      .slice(0, 6);
+  }, [games, query]);
+
+  return (
+    <div className="relative">
+      <div className="relative flex items-center">
+        <svg
+          className="pointer-events-none absolute left-5"
+          fill="none"
+          height="22"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          style={{ color: focused ? theme.accent : theme.muted, transition: "color .2s" }}
+          viewBox="0 0 24 24"
+          width="22"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+        <input
+          className="w-full rounded-2xl py-5 pl-14 pr-6 text-[16px] font-medium outline-none transition md:pr-32"
+          onBlur={() => setTimeout(() => setFocused(false), 200)}
+          onChange={(event) => setQuery(event.target.value)}
+          onFocus={() => setFocused(true)}
+          placeholder="Busca videojuegos, estudios, sagas o creadores"
+          style={{
+            background: focused ? theme.inputBgFocus : theme.inputBg,
+            border: `2px solid ${focused ? theme.accent : theme.border}`,
+            color: theme.fg,
+            boxShadow: focused
+              ? `0 0 0 6px ${theme.accent}22, 0 8px 24px ${theme.accent}33`
+              : "0 4px 12px rgba(0,0,0,.2)",
+            fontFamily: theme.fontBody
+          }}
+          value={query}
+        />
+        <kbd
+          className="absolute right-5 hidden items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold md:flex"
+          style={{
+            background: theme.kbdBg,
+            border: `1px solid ${theme.border}`,
+            color: theme.muted,
+            fontFamily: theme.fontMono
+          }}
+        >
+          ?K
+        </kbd>
+      </div>
+
+      {focused && results.length > 0 && (
+        <div
+          className="absolute left-0 right-0 top-full z-30 mt-3 overflow-hidden rounded-2xl"
+          style={{
+            background: theme.dropdown,
+            border: `1px solid ${theme.border}`,
+            boxShadow: theme.dropdownShadow,
+            animation: "home-fade-in-up .25s cubic-bezier(.2,.7,.3,1)"
+          }}
+        >
+          <div
+            className="px-4 py-2 text-[10px] font-black uppercase tracking-wider"
+            style={{ color: theme.muted, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}` }}
+          >
+            {results.length} resultados
+          </div>
+          {results.map((game) => (
+            <Link
+              key={game.slug}
+              className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5"
+              href={`/games/${game.slug}`}
+            >
+              <img alt="" className="h-12 w-10 rounded-lg object-cover" src={game.coverUrl} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[15px] font-bold" style={{ color: theme.fg }}>
+                  {game.title}
+                </div>
+                <div className="truncate text-xs" style={{ color: theme.muted }}>
+                  {game.year || "TBA"} · {game.developer} · {game.genres.slice(0, 2).join(", ")}
+                </div>
+              </div>
+              <RatingPill score={game.userScore} size="sm" />
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  const theme = useTheme();
+  const [count, setCount] = useState(0);
+  const [ref, inView] = useInView<HTMLDivElement>();
+
+  useEffect(() => {
+    if (!inView) return;
+
+    const num = parseFloat(value);
+    const duration = 1200;
+    const startTime = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(num * eased);
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [inView, value]);
+
+  const display = value.includes("M")
+    ? `${count.toFixed(1)}M`
+    : value.includes("k")
+      ? `${count.toFixed(1)}k`
+      : count.toFixed(0);
+
+  return (
+    <div ref={ref}>
+      <div className="tabular-nums text-[28px] font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+        {display}
+      </div>
+      <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function Section({
+  children,
+  eyebrow,
+  href,
+  title
+}: {
+  children: ReactNode;
+  eyebrow?: string;
+  href?: string;
+  title: string;
+}) {
+  const [ref, inView] = useInView<HTMLElement>();
+
+  return (
+    <section
+      ref={ref}
+      className="px-4 py-12 sm:px-6 md:py-16 lg:px-8"
+      style={{
+        opacity: inView ? 1 : 0,
+        transform: inView ? "translateY(0)" : "translateY(40px)",
+        transition: "opacity .8s, transform .8s cubic-bezier(.2,.7,.3,1)"
+      }}
+    >
+      <div className="mx-auto max-w-[1400px]">
+        <SectionHeader eyebrow={eyebrow} href={href} title={title} />
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SectionHeader({
+  count,
+  eyebrow,
+  href,
+  title
+}: {
+  count?: number;
+  eyebrow?: string;
+  href?: string;
+  title: string;
+}) {
+  const theme = useTheme();
+
+  return (
+    <div className="mb-6 flex items-end justify-between gap-4">
+      <div>
+        {eyebrow && (
+          <div className="mb-2 flex items-center gap-2">
+            <span style={{ width: 24, height: 2, background: theme.accent, display: "inline-block" }} />
+            <span
+              className="text-[11px] font-black uppercase tracking-[0.25em]"
+              style={{ color: theme.accent, fontFamily: theme.fontMono }}
+            >
+              {eyebrow}
+            </span>
+          </div>
+        )}
+        <h2
+          className="text-[32px] font-black leading-[1.05] tracking-tight md:text-[40px]"
+          style={{ color: theme.fg, fontFamily: theme.fontDisplay, letterSpacing: "-0.02em" }}
+        >
+          {title}
+        </h2>
+        {count != null && (
+          <div className="mt-1 text-sm" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
+            {formatCompactNumber(count)} resultados
+          </div>
+        )}
+      </div>
+      {href && (
+        <Link className="group flex items-center gap-1.5 text-sm font-bold transition" href={href} style={{ color: theme.accent }}>
+          Ver todo
+          <span className="inline-block transition-transform group-hover:translate-x-1">?</span>
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function Marquee({ items, speed = 50 }: { items: Array<{ label: string; value: string }>; speed?: number }) {
+  const theme = useTheme();
+
+  return (
+    <div
+      className="relative overflow-hidden py-4"
+      style={{
+        background: theme.marqueeBg,
+        borderTop: `1px solid ${theme.border}`,
+        borderBottom: `1px solid ${theme.border}`
+      }}
+    >
+      <div
+        className="flex w-fit gap-12 whitespace-nowrap"
+        style={{ animation: `home-marquee ${speed}s linear infinite` }}
+      >
+        {[...items, ...items, ...items].map((item, index) => (
+          <span
+            key={`${item.label}-${index}`}
+            className="inline-flex items-center gap-3 text-[28px] font-black tracking-tight"
+            style={{ color: theme.marqueeFg, fontFamily: theme.fontDisplay }}
+          >
+            <span>{item.label}</span>
+            <span style={{ color: theme.accent }}>?</span>
+            <span style={{ color: theme.marqueeAccent, fontFamily: theme.fontMono, fontSize: 18 }}>{item.value}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DragCarousel({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const dragState = useRef({ down: false, startX: 0, startScroll: 0, vel: 0, lastX: 0, lastT: 0 });
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const node = ref.current;
+    if (!node) return;
+    dragState.current = {
+      down: true,
+      startX: event.clientX,
+      startScroll: node.scrollLeft,
+      vel: 0,
+      lastX: event.clientX,
+      lastT: performance.now()
+    };
+    node.setPointerCapture(event.pointerId);
+    node.style.scrollBehavior = "auto";
+    node.style.cursor = "grabbing";
+  };
+
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const node = ref.current;
+    if (!node || !dragState.current.down) return;
+    event.preventDefault();
+    const dx = event.clientX - dragState.current.startX;
+    node.scrollLeft = dragState.current.startScroll - dx;
+    const now = performance.now();
+    const dt = now - dragState.current.lastT;
+    if (dt > 0) dragState.current.vel = (dragState.current.lastX - event.clientX) / dt;
+    dragState.current.lastX = event.clientX;
+    dragState.current.lastT = now;
+  };
+
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const node = ref.current;
+    if (!node || !dragState.current.down) return;
+    dragState.current.down = false;
+    if (node.hasPointerCapture(event.pointerId)) node.releasePointerCapture(event.pointerId);
+    node.style.cursor = "grab";
+
+    let velocity = dragState.current.vel * 16;
+    const decay = 0.94;
+    const step = () => {
+      const current = ref.current;
+      if (Math.abs(velocity) < 0.5 || !current) return;
+      current.scrollLeft += velocity;
+      velocity *= decay;
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
+  return (
+    <div
+      ref={ref}
+      className="flex select-none gap-5 overflow-x-auto overflow-y-hidden pb-4"
+      onPointerDown={onPointerDown}
+      onPointerLeave={onPointerUp}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      style={{
+        cursor: "grab",
+        scrollbarWidth: "none",
+        scrollSnapType: "x mandatory",
+        WebkitOverflowScrolling: "touch",
+        overscrollBehaviorX: "contain"
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Grid({ games }: { games: EnhancedGame[] }) {
+  return (
+    <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+      {games.map((game, index) => (
+        <div
+          key={game.slug}
+          style={{ animation: `home-fade-in-up .6s cubic-bezier(.2,.7,.3,1) ${Math.min(index * 0.06, 0.6)}s both` }}
+        >
+          <TiltCard game={game} priority={index < 4} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TiltCard({ game, priority = false }: { game: EnhancedGame; priority?: boolean }) {
+  const theme = useTheme();
+  const ref = useRef<HTMLAnchorElement | null>(null);
+  const [tilt, setTilt] = useState({ rx: 0, ry: 0, mx: 50, my: 50 });
+  const [hover, setHover] = useState(false);
+
+  const onMove = (event: React.MouseEvent<HTMLElement>) => {
+    const node = ref.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    setTilt({
+      rx: (0.5 - y) * 14,
+      ry: (x - 0.5) * 14,
+      mx: x * 100,
+      my: y * 100
+    });
+  };
+
+  const onLeave = () => {
+    setTilt({ rx: 0, ry: 0, mx: 50, my: 50 });
+    setHover(false);
+  };
+
+  return (
+    <Link
+      ref={ref}
+      className="group relative block cursor-pointer no-underline"
+      href={`/games/${game.slug}`}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={onLeave}
+      onMouseMove={onMove}
+      onPointerDown={(event) => event.stopPropagation()}
+      style={{ perspective: 1000 }}
+    >
+      <div
+        className="relative overflow-hidden rounded-2xl"
+        style={{
+          aspectRatio: "3/4",
+          background: theme.cardBg,
+          border: `1px solid ${theme.border}`,
+          transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg) translateZ(0)`,
+          transformStyle: "preserve-3d",
+          transition: "transform .15s ease-out, box-shadow .25s",
+          boxShadow: hover ? `0 30px 60px -20px ${game.accent}66, 0 0 0 1px ${game.accent}55` : theme.cardShadow
+        }}
+      >
+        <img
+          alt={game.title}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading={priority ? "eager" : "lazy"}
+          src={game.coverUrl}
+          style={{
+            transform: `translateZ(20px) scale(${hover ? 1.08 : 1})`,
+            transition: "transform .4s cubic-bezier(.2,.7,.3,1)"
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(180deg, transparent 40%, ${theme.cardOverlay} 100%)`,
+            transform: "translateZ(30px)"
+          }}
+        />
+        <div
+          className="absolute inset-0 transition-opacity"
+          style={{
+            background: `radial-gradient(circle at ${tilt.mx}% ${tilt.my}%, ${game.accent}55 0%, transparent 60%)`,
+            opacity: hover ? 1 : 0,
+            mixBlendMode: "overlay",
+            transform: "translateZ(40px)"
+          }}
+        />
+
+        <div className="absolute left-3 top-3" style={{ transform: "translateZ(50px)" }}>
+          <RatingPill score={game.userScore} size="sm" />
+        </div>
+        {game.status !== "released" && (
+          <div className="absolute right-3 top-3" style={{ transform: "translateZ(50px)" }}>
+            <StatusBadge status={game.status} />
+          </div>
+        )}
+
+        <div className="absolute inset-x-0 bottom-0 p-4" style={{ transform: "translateZ(60px)" }}>
+          <h3
+            className="text-[15px] font-black leading-tight text-white"
+            style={{ textShadow: "0 2px 8px rgba(0,0,0,.6)", fontFamily: theme.fontDisplay }}
+          >
+            {game.title}
+          </h3>
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-white opacity-90">
+            <span>{game.year > 0 ? game.year : "TBA"}</span>
+            <span style={{ opacity: 0.5 }}>·</span>
+            <span className="truncate">{game.platforms[0]}</span>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="absolute -bottom-3 left-3 right-3 rounded-full transition-all"
+        style={{
+          height: 30,
+          background: hover ? game.accent : theme.cardShadowColor,
+          filter: "blur(20px)",
+          opacity: hover ? 0.45 : 0.2,
+          transform: hover ? "scaleX(0.92)" : "scaleX(0.85)"
+        }}
+      />
+    </Link>
+  );
+}
+
+function RatingPill({ score, size = "md" }: { score?: number | null; size?: "xs" | "sm" | "md" }) {
+  const theme = useTheme();
+  const tone = !score ? theme.scoreNone : score >= 9 ? theme.scoreHigh : score >= 7.5 ? theme.scoreMid : theme.scoreLow;
+  const sizes = {
+    xs: { px: 6, py: 2, fz: 11 },
+    sm: { px: 8, py: 4, fz: 13 },
+    md: { px: 10, py: 5, fz: 15 }
+  }[size];
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md tabular-nums font-black"
+      style={{
+        background: tone.bg,
+        color: tone.fg,
+        border: `1px solid ${tone.border}`,
+        padding: `${sizes.py}px ${sizes.px}px`,
+        fontSize: sizes.fz,
+        boxShadow: tone.shadow,
+        fontFamily: theme.fontMono
+      }}
+    >
+      {score ? score.toFixed(1) : "?"}
+    </span>
+  );
+}
+
+function StatusBadge({ status }: { status: Game["status"] }) {
+  const theme = useTheme();
+  const isUpcoming = status === "upcoming";
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-wider"
+      style={{
+        background: isUpcoming ? theme.statusUpcomingBg : theme.statusEarlyBg,
+        color: isUpcoming ? theme.statusUpcomingFg : theme.statusEarlyFg,
+        border: `1px solid ${isUpcoming ? theme.statusUpcomingBorder : theme.statusEarlyBorder}`
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: isUpcoming ? theme.statusUpcomingFg : theme.statusEarlyFg,
+          animation: "home-pulse 1.5s ease-in-out infinite"
+        }}
+      />
+      {isUpcoming ? "Próximo" : "Early"}
+    </span>
+  );
+}
+
+function RankingList({
+  games,
+  onOpen
+}: {
+  games: EnhancedGame[];
+  onOpen: Dispatch<SetStateAction<EnhancedGame | null>>;
+}) {
+  const theme = useTheme();
+
+  return (
+    <div
+      className="overflow-hidden rounded-2xl"
+      style={{
+        background: theme.cardBg,
+        border: `1px solid ${theme.border}`
+      }}
+    >
+      {games.map((game, index) => (
+        <RankingRow
+          game={game}
+          isLast={index === games.length - 1}
+          key={game.slug}
+          onOpen={onOpen}
+          rank={index + 1}
+        />
+      ))}
+    </div>
+  );
+}
+
+function RankingRow({
+  game,
+  isLast,
+  onOpen,
+  rank
+}: {
+  game: EnhancedGame;
+  isLast: boolean;
+  onOpen: Dispatch<SetStateAction<EnhancedGame | null>>;
+  rank: number;
+}) {
+  const theme = useTheme();
+  const [hover, setHover] = useState(false);
+
+  return (
+    <button
+      className="grid w-full cursor-pointer items-center text-left transition"
+      onClick={() => onOpen(game)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        gridTemplateColumns: "clamp(48px, 9vw, 80px) 64px minmax(0, 1fr) auto",
+        gap: 16,
+        padding: "16px clamp(14px, 3vw, 24px)",
+        borderBottom: isLast ? "none" : `1px solid ${theme.border}`,
+        background: hover ? theme.rowHover : "transparent"
+      }}
+      type="button"
+    >
+      <div
+        className="tabular-nums font-black"
+        style={{
+          fontSize: "clamp(24px, 5vw, 38px)",
+          fontFamily: theme.fontDisplay,
+          color: rank <= 3 ? theme.accent : theme.muted,
+          letterSpacing: "-0.03em",
+          transition: "transform .25s",
+          transform: hover ? "scale(1.1) translateX(4px)" : "scale(1)"
+        }}
+      >
+        {String(rank).padStart(2, "0")}
+      </div>
+      <div
+        className="overflow-hidden rounded-lg"
+        style={{
+          width: 56,
+          height: 76,
+          boxShadow: hover ? `0 12px 24px -8px ${game.accent}88` : "0 4px 12px rgba(0,0,0,.3)",
+          transition: "box-shadow .25s, transform .25s",
+          transform: hover ? "rotate(-3deg) scale(1.05)" : "rotate(0) scale(1)"
+        }}
+      >
+        <img alt={game.title} className="h-full w-full object-cover" src={game.coverUrl} />
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-[18px] font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+          {game.title}
+        </div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm" style={{ color: theme.muted }}>
+          <span>{game.year || "TBA"}</span>
+          <span style={{ opacity: 0.4 }}>·</span>
+          <span>{game.developer}</span>
+          <span className="hidden sm:inline" style={{ opacity: 0.4 }}>
+            ·
+          </span>
+          <span className="hidden sm:inline">{game.genres.slice(0, 2).join(", ")}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-4">
+        <span className="hidden text-right text-[13px] md:block" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
+          {formatCompactNumber(game.ratings)} votos
+        </span>
+        <RatingPill score={game.userScore} size="md" />
+      </div>
+    </button>
+  );
+}
+
+function PlatformSection({ platforms }: { platforms: Platform[] }) {
+  const [ref, inView] = useInView<HTMLElement>();
+
+  return (
+    <section
+      ref={ref}
+      className="px-4 py-12 sm:px-6 md:py-16 lg:px-8"
+      style={{
+        opacity: inView ? 1 : 0,
+        transform: inView ? "translateY(0)" : "translateY(40px)",
+        transition: "opacity .8s, transform .8s cubic-bezier(.2,.7,.3,1)"
+      }}
+    >
+      <div className="mx-auto max-w-[1400px]">
+        <SectionHeader eyebrow="Por plataforma" title="Encuentra tu ecosistema" />
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          {platforms.map((platform, index) => (
+            <PlatformCard delay={index * 0.08} key={platform.slug} platform={platform} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PlatformCard({ delay, platform }: { delay: number; platform: Platform }) {
+  const theme = useTheme();
+  const [hover, setHover] = useState(false);
+  const colors = [theme.accent, theme.accent2, theme.scoreHigh.fg, theme.scoreMid.fg, theme.accent];
+  const color = colors[Math.abs(platform.slug.charCodeAt(0)) % colors.length];
+
+  return (
+    <Link
+      className="group relative block overflow-hidden rounded-2xl p-6"
+      href={`/platforms/${platform.slug}`}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: theme.cardBg,
+        border: `1px solid ${hover ? color : theme.border}`,
+        animation: `home-fade-in-up .6s cubic-bezier(.2,.7,.3,1) ${delay}s both`,
+        transition: "border-color .25s, transform .25s",
+        transform: hover ? "translateY(-4px)" : "translateY(0)",
+        boxShadow: hover ? `0 20px 40px -10px ${color}55` : "none"
+      }}
+    >
+      <div
+        className="absolute -right-12 -top-12 h-40 w-40 rounded-full"
+        style={{
+          background: color,
+          opacity: hover ? 0.3 : 0.15,
+          filter: "blur(40px)",
+          transition: "opacity .3s, transform .3s",
+          transform: hover ? "scale(1.2)" : "scale(1)"
+        }}
+      />
+      <div className="relative">
+        <div className="mb-4 flex items-center justify-between">
+          <div
+            className="grid h-12 w-12 place-items-center rounded-xl text-2xl font-black"
+            style={{
+              background: `${color}22`,
+              color,
+              border: `1px solid ${color}44`,
+              transition: "transform .3s",
+              transform: hover ? "rotate(-12deg) scale(1.1)" : "rotate(0) scale(1)",
+              fontFamily: theme.fontMono
+            }}
+          >
+            {platform.icon}
+          </div>
+          <span
+            className="rounded-md px-2 py-1 text-xs tabular-nums font-black"
+            style={{ background: theme.chipBg, color: theme.muted, fontFamily: theme.fontMono }}
+          >
+            {formatCompactNumber(platform.count)} juegos
+          </span>
+        </div>
+        <div className="text-[20px] font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+          {platform.name}
+        </div>
+        <div className="mt-1.5 text-sm" style={{ color: theme.muted }}>
+          Explora juegos, rankings y pr?ximos.
+        </div>
+        <div className="mt-4 flex items-center gap-1 text-sm font-bold" style={{ color: hover ? color : theme.muted, transition: "color .2s" }}>
+          Explorar{" "}
+          <span style={{ display: "inline-block", transform: hover ? "translateX(4px)" : "translateX(0)", transition: "transform .2s" }}>
+            ?
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function ListsGrid({ games, lists }: { games: EnhancedGame[]; lists: CommunityList[] }) {
+  return (
+    <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+      {lists.map((list, index) => (
+        <CommunityListCard delay={index * 0.1} games={games} key={list.slug} list={list} />
+      ))}
+    </div>
+  );
+}
+
+function CommunityListCard({
+  delay,
+  games,
+  list
+}: {
+  delay: number;
+  games: EnhancedGame[];
+  list: CommunityList;
+}) {
+  const theme = useTheme();
+  const [hover, setHover] = useState(false);
+  const covers = list.games
+    .map((title) => games.find((game) => game.title === title)?.coverUrl)
+    .filter(Boolean) as string[];
+  const fallbackCovers = covers.length ? covers : games.slice(0, 3).map((game) => game.coverUrl);
+
+  return (
+    <Link
+      className="block overflow-hidden rounded-2xl"
+      href={`/lists/${list.slug}`}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        background: theme.cardBg,
+        border: `1px solid ${hover ? theme.accent : theme.border}`,
+        transition: "border-color .25s, transform .25s, box-shadow .25s",
+        transform: hover ? "translateY(-6px)" : "translateY(0)",
+        boxShadow: hover ? `0 24px 48px -12px ${theme.accent}55` : "0 4px 12px rgba(0,0,0,.15)",
+        animation: `home-fade-in-up .6s cubic-bezier(.2,.7,.3,1) ${delay}s both`
+      }}
+    >
+      <div className="relative h-44 overflow-hidden" style={{ background: theme.chipBg }}>
+        {fallbackCovers.slice(0, 3).map((cover, index) => (
+          <div
+            key={`${cover}-${index}`}
+            className="absolute overflow-hidden rounded-lg"
+            style={{
+              width: 110,
+              height: 150,
+              left: `${30 + index * 30}%`,
+              top: "50%",
+              transform: `translate(-50%, -50%) rotate(${(index - 1) * 8}deg) ${
+                hover ? `translateY(-${index * 6}px) rotate(${(index - 1) * 12}deg)` : ""
+              }`,
+              boxShadow: "0 8px 24px rgba(0,0,0,.4)",
+              border: `2px solid ${theme.bg}`,
+              transition: "transform .35s cubic-bezier(.2,.7,.3,1)",
+              zIndex: index + 1
+            }}
+          >
+            <img alt="" className="h-full w-full object-cover" src={cover} />
+          </div>
+        ))}
+        <div
+          className="absolute left-3 top-3 z-10 rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-wider"
+          style={{ background: "rgba(0,0,0,.6)", color: "#fff", backdropFilter: "blur(8px)", fontFamily: theme.fontMono }}
+        >
+          {list.games.length} juegos
+        </div>
+      </div>
+      <div className="p-5">
+        <div className="mb-1 text-[11px] font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
+          {list.curator ?? "Curadur?a comunitaria"}
+        </div>
+        <h3 className="text-[18px] font-black leading-tight" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+          {list.title}
+        </h3>
+        <p className="mt-2 text-sm leading-relaxed" style={{ color: theme.muted }}>
+          {list.description}
+        </p>
+        <div className="mt-4 flex items-center gap-2 text-xs font-bold" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
+          <span style={{ color: theme.scoreLow.fg }}>?</span>
+          <span>{formatCompactNumber(list.likes)} likes</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function FinalCTA({ games }: { games: EnhancedGame[] }) {
+  const theme = useTheme();
+  const [ref, inView] = useInView<HTMLDivElement>();
+
+  return (
+    <section className="px-4 py-16 sm:px-6 md:py-20 lg:px-8">
+      <div className="mx-auto max-w-[1400px]">
+        <div
+          ref={ref}
+          className="relative overflow-hidden rounded-[36px] p-8 text-center md:p-20"
+          style={{
+            background: theme.ctaBg,
+            border: `1px solid ${theme.border}`,
+            opacity: inView ? 1 : 0,
+            transform: inView ? "scale(1)" : "scale(0.95)",
+            transition: "opacity .8s, transform .8s cubic-bezier(.2,.7,.3,1)"
+          }}
+        >
+          <div className="pointer-events-none absolute inset-0">
+            {games.slice(0, 6).map((game, index) => (
+              <div
+                key={game.slug}
+                className="absolute overflow-hidden rounded-xl"
+                style={{
+                  width: 80,
+                  height: 110,
+                  left: `${[5, 12, 88, 15, 82, 92][index]}%`,
+                  top: `${[15, 65, 25, 85, 70, 50][index]}%`,
+                  transform: `rotate(${[-10, 8, -6, 12, -8, 5][index]}deg)`,
+                  opacity: 0.45,
+                  filter: "blur(0.5px)",
+                  animation: `home-float ${5 + index * 0.5}s ease-in-out infinite ${index * 0.3}s`,
+                  boxShadow: "0 12px 32px rgba(0,0,0,.4)"
+                }}
+              >
+                <img alt="" className="h-full w-full object-cover" src={game.coverUrl} />
+              </div>
+            ))}
+          </div>
+
+          <div className="relative">
+            <div
+              className="mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.2em]"
+              style={{
+                background: theme.heroEyebrowBg,
+                color: theme.accent,
+                border: `1px solid ${theme.heroEyebrowBorder}`,
+                fontFamily: theme.fontMono
+              }}
+            >
+              ? ?nete a la comunidad
+            </div>
+            <h2
+              className="font-black leading-[0.95] tracking-[-0.03em]"
+              style={{
+                fontSize: "clamp(36px, 5vw, 64px)",
+                fontFamily: theme.fontDisplay,
+                color: theme.fg
+              }}
+            >
+              Empieza tu <span style={{ color: theme.accent }}>backlog</span>
+              <br />
+              en GameIndex
+            </h2>
+            <p className="mx-auto mt-5 max-w-xl text-[17px]" style={{ color: theme.muted }}>
+              Guarda pendientes, marca juegos completados, escribe reseñas y sigue lanzamientos.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <button
+                className="rounded-full px-7 py-3.5 text-[15px] font-black transition"
+                style={{
+                  background: theme.btnPrimary,
+                  color: theme.btnPrimaryFg,
+                  boxShadow: theme.btnGlow
+                }}
+                type="button"
+              >
+                Crear cuenta gratis
+              </button>
+              <Link
+                className="rounded-full px-7 py-3.5 text-[15px] font-black transition"
+                href="/games"
+                style={{
+                  background: "transparent",
+                  color: theme.fg,
+                  border: `1px solid ${theme.border}`
+                }}
+              >
+                Explorar juegos ?
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void }) {
+  const theme = useTheme();
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] grid place-items-center p-4 sm:p-8"
+      onClick={onClose}
+      style={{
+        background: "rgba(0,0,0,.75)",
+        backdropFilter: "blur(16px)",
+        animation: "home-fade-in-up .25s"
+      }}
+    >
+      <div
+        className="relative w-full max-w-2xl overflow-hidden rounded-3xl"
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          background: theme.cardBg,
+          border: `1px solid ${theme.border}`,
+          animation: "home-fade-in-up .4s cubic-bezier(.2,.7,.3,1)"
+        }}
+      >
+        <div className="relative h-48 overflow-hidden">
+          <img alt="" className="h-full w-full object-cover" src={game.coverUrl} style={{ filter: "blur(2px)" }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, transparent, ${theme.cardBg})` }} />
+          <button
+            className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full"
+            onClick={onClose}
+            style={{ background: "rgba(0,0,0,.6)", color: "#fff", backdropFilter: "blur(8px)" }}
+            type="button"
+          >
+            ?
+          </button>
+        </div>
+        <div className="relative grid gap-6 p-6 sm:-mt-24 sm:grid-cols-[140px,1fr]">
+          <img
+            alt={game.title}
+            className="hidden h-[190px] w-[140px] rounded-xl object-cover sm:block"
+            src={game.coverUrl}
+            style={{ boxShadow: `0 20px 40px ${game.accent}77` }}
+          />
+          <div className="sm:pt-24">
+            <div className="mb-1 text-[11px] font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
+              {game.developer} · {game.year || "TBA"}
+            </div>
+            <h2 className="text-2xl font-black leading-tight md:text-3xl" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+              {game.title}
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: theme.muted }}>
+              {game.summary}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {game.genres.map((genre) => (
+                <span
+                  key={genre}
+                  className="rounded-full px-3 py-1 text-xs font-bold"
+                  style={{ background: theme.chipBg, color: theme.fg, border: `1px solid ${theme.border}` }}
+                >
+                  {genre}
+                </span>
+              ))}
+            </div>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <RatingPill score={game.userScore} size="md" />
+              <div className="text-xs" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
+                {formatCompactNumber(game.ratings)} votos · {formatCompactNumber(game.reviews)} reseñas
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HomeStyles() {
+  return (
+    <style>{`
+      @keyframes home-marquee {
+        from { transform: translateX(0); }
+        to { transform: translateX(-33.333%); }
+      }
+      @keyframes home-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(0.9); }
+      }
+      @keyframes home-float {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-12px) rotate(2deg); }
+      }
+      @keyframes home-fade-in-up {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes home-spin-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes home-shine {
+        0% { transform: translateX(-100%) skewX(-20deg); }
+        100% { transform: translateX(200%) skewX(-20deg); }
+      }
+      .home-scrollbarless::-webkit-scrollbar,
+      .home-scrollbarless *::-webkit-scrollbar { display: none; }
+    `}</style>
+  );
+}
+

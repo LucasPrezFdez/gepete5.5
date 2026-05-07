@@ -1,0 +1,120 @@
+﻿import { NextResponse } from "next/server";
+import { createServiceDatabaseClient } from "@/services/database";
+import { ensureProfile, getUserFromRequest, profileFromRow } from "@/services/community";
+
+export const dynamic = "force-dynamic";
+
+const PROFILE_SELECT = "id,username,display_name,bio,avatar_url,created_at,updated_at,favorite_platforms,favorite_genres";
+const MAX_BIO_LENGTH = 300;
+const MAX_AVATAR_URL_LENGTH = 500;
+
+export async function GET(request: Request) {
+  const auth = await getUserFromRequest(request);
+  if (!auth.user) return NextResponse.json({ error: auth.error }, { status: 401 });
+
+  const serviceClient = createServiceDatabaseClient();
+  await ensureProfile(serviceClient, auth.user);
+
+  const { data, error } = await serviceClient
+    .from("profiles")
+    .select(PROFILE_SELECT)
+    .eq("id", auth.user.id)
+    .maybeSingle();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Perfil no encontrado." }, { status: 404 });
+
+  return NextResponse.json({ profile: profileFromRow(data) });
+}
+
+export async function PATCH(request: Request) {
+  const auth = await getUserFromRequest(request);
+  if (!auth.user) return NextResponse.json({ error: auth.error }, { status: 401 });
+
+  const payload = await request.json().catch(() => null);
+  const displayName = String(payload?.displayName ?? "").trim();
+  const bio = normalizeNullableText(payload?.bio, MAX_BIO_LENGTH);
+  const avatarUrl = normalizeAvatarUrl(payload?.avatarUrl);
+  const favoritePlatforms = normalizeStringList(payload?.favoritePlatforms);
+  const favoriteGenres = normalizeStringList(payload?.favoriteGenres);
+
+  if (displayName.length < 2 || displayName.length > 60) {
+    return NextResponse.json({ error: "El nombre visible debe tener entre 2 y 60 caracteres." }, { status: 400 });
+  }
+  if (bio.error) return NextResponse.json({ error: bio.error }, { status: 400 });
+  if (avatarUrl.error) return NextResponse.json({ error: avatarUrl.error }, { status: 400 });
+
+  const serviceClient = createServiceDatabaseClient();
+  await ensureProfile(serviceClient, auth.user);
+  const now = new Date().toISOString();
+
+  const { data, error } = await serviceClient
+    .from("profiles")
+    .update({
+      display_name: displayName,
+      bio: bio.value,
+      avatar_url: avatarUrl.value,
+      favorite_platforms: favoritePlatforms,
+      favorite_genres: favoriteGenres,
+      onboarding_completed: true,
+      updated_at: now
+    })
+    .eq("id", auth.user.id)
+    .select(PROFILE_SELECT)
+    .maybeSingle();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Perfil no encontrado." }, { status: 404 });
+
+  const { error: userError } = await serviceClient
+    .from("app_users")
+    .update({ display_name: displayName, updated_at: now })
+    .eq("id", auth.user.id);
+
+  if (userError) return NextResponse.json({ error: userError.message }, { status: 500 });
+
+  return NextResponse.json({ profile: profileFromRow(data) });
+}
+
+export async function POST(request: Request) {
+  return GET(request);
+}
+
+function normalizeNullableText(value: unknown, maxLength: number) {
+  const text = String(value ?? "").trim();
+  if (!text) return { value: null, error: null };
+  if (text.length > maxLength) return { value: null, error: `El texto no puede superar ${maxLength} caracteres.` };
+  return { value: text, error: null };
+}
+
+function normalizeAvatarUrl(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (!text) return { value: null, error: null };
+  if (text.length > MAX_AVATAR_URL_LENGTH) return { value: null, error: "La URL del avatar es demasiado larga." };
+
+  try {
+    const url = new URL(text);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return { value: null, error: "La URL del avatar debe empezar por http:// o https://." };
+    }
+    return { value: url.toString(), error: null };
+  } catch {
+    return { value: null, error: "La URL del avatar no es válida." };
+  }
+}
+
+function normalizeStringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const item of value) {
+    const text = String(item ?? "").trim().slice(0, 40);
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    result.push(text);
+    if (result.length >= 8) break;
+  }
+
+  return result;
+}

@@ -235,6 +235,14 @@ create table if not exists saved_lists (
   primary key (list_id, user_id)
 );
 
+create table if not exists list_collaborators (
+  list_id uuid references lists(id) on delete cascade,
+  user_id uuid references profiles(id) on delete cascade,
+  role text default 'editor' check (role in ('editor')),
+  created_at timestamptz default now(),
+  primary key (list_id, user_id)
+);
+
 create table if not exists follows (
   follower_id uuid references profiles(id) on delete cascade,
   following_id uuid references profiles(id) on delete cascade,
@@ -261,6 +269,7 @@ create index if not exists game_genres_genre_id_idx on game_genres(genre_id);
 create index if not exists game_companies_company_role_idx on game_companies(company_id, role);
 create index if not exists lists_user_id_idx on lists(user_id, created_at desc);
 create index if not exists list_items_list_position_idx on list_items(list_id, position);
+create index if not exists list_collaborators_user_idx on list_collaborators(user_id, created_at desc);
 create index if not exists user_game_statuses_user_status_idx on user_game_statuses(user_id, status, created_at desc);
 create index if not exists activity_events_user_created_idx on activity_events(user_id, created_at desc);
 create index if not exists activity_events_created_idx on activity_events(created_at desc);

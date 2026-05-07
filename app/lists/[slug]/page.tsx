@@ -1,13 +1,9 @@
 ﻿import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { GameGrid } from "@/components/games/GameGrid";
-import { SectionHeader } from "@/components/sections/SectionHeader";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { ListExperience } from "@/components/lists/ListExperience";
 import { communityLists } from "@/data/community";
 import { getExploreGames } from "@/services/games";
 import { createServiceDatabaseClient } from "@/services/database";
-import { listFromRow } from "@/services/lists";
+import { LIST_WITH_ITEMS_SELECT, listFromRow } from "@/services/lists";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +11,7 @@ type Params = Promise<{ slug: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const list = await getDatabaseList(slug);
+  const list = await getPublicDatabaseList(slug);
   const fallback = communityLists.find((item) => item.slug === slug);
   return {
     title: list?.title ?? fallback?.title ?? "Lista",
@@ -25,64 +21,39 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function ListPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const list = await getDatabaseList(slug);
+  const list = await getPublicDatabaseList(slug);
 
-  if (list) {
-    return (
-      <section className="container-page py-10">
-        <div className="surface-card mb-8 rounded-3xl p-8">
-          <Badge tone={list.isPublic ? "violet" : "muted"}>{list.isPublic ? "Lista pública" : "Lista privada"}</Badge>
-          <h1 className="mt-4 text-4xl font-black">{list.title}</h1>
-          <p className="mt-2 text-sm text-muted">por @{list.user.username}</p>
-          {list.description && <p className="mt-3 max-w-2xl text-muted">{list.description}</p>}
-          <div className="mt-6 flex gap-3">
-            <Button>Me gusta ({list.likesCount.toLocaleString("es-ES")})</Button>
-            <Button variant="secondary">Guardar lista</Button>
-          </div>
-        </div>
-        <SectionHeader title="Juegos de la lista" />
-        {list.items.length > 0 ? (
-          <GameGrid games={list.items.map((item: any) => item.game)} view="list" />
-        ) : (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-muted">Esta lista todavía no tiene juegos.</div>
-        )}
-      </section>
-    );
-  }
+  if (list) return <ListExperience slug={slug} initialList={list} />;
 
   const fallback = communityLists.find((item) => item.slug === slug);
-  if (!fallback) notFound();
+  if (fallback) {
+    const gameResults = await Promise.all(fallback.games.map((title) => getExploreGames({ query: title, pageSize: 1 })));
+    const games = gameResults.flatMap((result) => result.games.slice(0, 1));
+    return <ListExperience slug={slug} initialList={{
+      id: slug,
+      slug,
+      title: fallback.title,
+      description: fallback.description,
+      coverUrl: null,
+      isPublic: true,
+      likesCount: fallback.likes,
+      user: { id: "editorial", username: "gameindex", displayName: "GameIndex", bio: null, avatarUrl: null, createdAt: null, favoritePlatforms: [], favoriteGenres: [] },
+      items: games.map((game, index) => ({ game, position: index + 1, note: null })),
+      createdAt: new Date().toISOString()
+    }} />;
+  }
 
-  const gameResults = await Promise.all(fallback.games.map((title) => getExploreGames({ query: title, pageSize: 1 })));
-  const games = gameResults.flatMap((result) => result.games.slice(0, 1));
-  const apiErrors = gameResults.map((result) => result.error).filter(Boolean);
-
-  return (
-    <section className="container-page py-10">
-      <div className="surface-card mb-8 rounded-3xl p-8">
-        <Badge tone="violet">Lista pública</Badge>
-        <h1 className="mt-4 text-4xl font-black">{fallback.title}</h1>
-        <p className="mt-3 max-w-2xl text-muted">{fallback.description}</p>
-        <div className="mt-6 flex gap-3">
-          <Button>Me gusta</Button>
-          <Button variant="secondary">Guardar lista</Button>
-        </div>
-      </div>
-      <SectionHeader title="Juegos de la lista" />
-      {apiErrors[0] && <p className="mb-5 text-sm text-danger">{apiErrors[0]}</p>}
-      <GameGrid games={games} />
-      <p className="mt-8 text-sm text-muted">Lista editorial inicial; las listas nuevas se cargan desde Neon.</p>
-    </section>
-  );
+  return <ListExperience slug={slug} initialList={null} />;
 }
 
-async function getDatabaseList(slug: string) {
+async function getPublicDatabaseList(slug: string) {
   try {
     const serviceClient = createServiceDatabaseClient();
     const { data, error } = await serviceClient
       .from("lists")
-      .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,created_at), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))")
+      .select(LIST_WITH_ITEMS_SELECT)
       .eq("slug", slug)
+      .eq("is_public", true)
       .maybeSingle();
 
     if (error || !data) return null;
@@ -91,6 +62,3 @@ async function getDatabaseList(slug: string) {
     return null;
   }
 }
-
-
-

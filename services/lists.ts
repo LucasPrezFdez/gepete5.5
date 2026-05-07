@@ -28,6 +28,25 @@ export const DEFAULT_PROFILE_LISTS = [
 
 type DefaultProfileListKey = (typeof DEFAULT_PROFILE_LISTS)[number]["key"];
 
+export const LIST_WITH_ITEMS_SELECT =
+  "*, profiles:user_id(id,username,display_name,bio,avatar_url,created_at,updated_at,favorite_platforms,favorite_genres), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))";
+
+export type ListPermissions = {
+  isOwner: boolean;
+  isCollaborator: boolean;
+  canView: boolean;
+  canEditItems: boolean;
+  canManage: boolean;
+};
+
+export type ListCollaborator = {
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: "editor";
+  createdAt: string | null;
+};
+
 export async function getAvailableListSlug(serviceClient: ReturnType<typeof createServiceDatabaseClient>, baseSlug: string) {
   const normalized = slugify(baseSlug) || "lista";
   for (let suffix = 0; suffix < 50; suffix += 1) {
@@ -85,6 +104,126 @@ export function dedupeListsByTitle<T extends { title: string; createdAt?: string
       return true;
     })
     .sort((left, right) => getTime(right.createdAt) - getTime(left.createdAt));
+}
+
+export async function ensureListCollaborationSchema() {
+  const sql = createSqlClient();
+  await sql.query(`
+    create table if not exists list_collaborators (
+      list_id uuid references lists(id) on delete cascade,
+      user_id uuid references profiles(id) on delete cascade,
+      role text default 'editor' check (role in ('editor')),
+      created_at timestamptz default now(),
+      primary key (list_id, user_id)
+    )
+  `);
+  await sql.query("create index if not exists list_collaborators_user_idx on list_collaborators(user_id, created_at desc)");
+}
+
+export async function getListPermissions(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  list: { id: string; user_id?: string; userId?: string; is_public?: boolean; isPublic?: boolean },
+  viewerId: string | null
+): Promise<ListPermissions> {
+  await ensureListCollaborationSchema();
+  const ownerId = list.user_id ?? list.userId;
+  const isOwner = Boolean(viewerId && ownerId === viewerId);
+  const isCollaborator = Boolean(viewerId && !isOwner && (await isListCollaborator(serviceClient, list.id, viewerId)));
+  const isPublic = Boolean(list.is_public ?? list.isPublic);
+
+  return {
+    isOwner,
+    isCollaborator,
+    canView: isPublic || isOwner || isCollaborator,
+    canEditItems: isOwner || isCollaborator,
+    canManage: isOwner
+  };
+}
+
+export async function getListCollaborators(listId: string): Promise<ListCollaborator[]> {
+  await ensureListCollaborationSchema();
+  const sql = createSqlClient();
+  const rows = await sql.query(
+    `select p.username, p.display_name, p.avatar_url, lc.role, lc.created_at
+     from list_collaborators lc
+     join profiles p on p.id = lc.user_id
+     where lc.list_id = $1
+     order by lc.created_at desc`,
+    [listId]
+  ) as Array<{ username: string; display_name: string | null; avatar_url: string | null; role: "editor"; created_at: string | null }>;
+
+  return rows.map((row) => ({
+    username: row.username,
+    displayName: row.display_name ?? row.username,
+    avatarUrl: row.avatar_url,
+    role: row.role,
+    createdAt: row.created_at
+  }));
+}
+
+export async function addListCollaboratorByUsername(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  listId: string,
+  ownerId: string,
+  username: string
+) {
+  await ensureListCollaborationSchema();
+  const { data: profile, error } = await serviceClient
+    .from("profiles")
+    .select("id, username")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!profile) throw new Error("No existe ningún usuario con ese nombre.");
+  if (profile.id === ownerId) throw new Error("El propietario ya puede editar la lista.");
+
+  const { error: insertError } = await serviceClient.from("list_collaborators").upsert(
+    { list_id: listId, user_id: profile.id, role: "editor" },
+    { onConflict: "list_id,user_id" }
+  );
+  if (insertError) throw new Error(insertError.message);
+
+  return profile;
+}
+
+export async function removeListCollaboratorByUsername(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  listId: string,
+  username: string
+) {
+  await ensureListCollaborationSchema();
+  const { data: profile, error } = await serviceClient
+    .from("profiles")
+    .select("id")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!profile) return;
+
+  const { error: deleteError } = await serviceClient
+    .from("list_collaborators")
+    .delete()
+    .eq("list_id", listId)
+    .eq("user_id", profile.id);
+  if (deleteError) throw new Error(deleteError.message);
+}
+
+async function isListCollaborator(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  listId: string,
+  userId: string
+) {
+  const { data, error } = await serviceClient
+    .from("list_collaborators")
+    .select("user_id")
+    .eq("list_id", listId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return Boolean(data);
 }
 
 async function ensureDefaultProfileList(
@@ -188,8 +327,8 @@ function gameFromMinimalRow(row: any) {
     title: row.title,
     slug: row.slug,
     year: Number(row.release_year ?? 0),
-    platforms: [],
-    genres: [],
+    platforms: Array.isArray(row.platforms) ? row.platforms.map(String) : [],
+    genres: Array.isArray(row.genres) ? row.genres.map(String) : [],
     developer: "Desarrolladora no disponible",
     publisher: "Publisher no disponible",
     userScore: Number(row.user_score ?? 0),

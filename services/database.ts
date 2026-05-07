@@ -65,6 +65,7 @@ const TABLES = new Set([
   "dlcs",
   "list_likes",
   "saved_lists",
+  "list_collaborators",
   "follows",
   "activity_events",
   "app_users"
@@ -85,6 +86,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
   list_items: ["id", "list_id", "game_id", "position", "note"],
   list_likes: ["list_id", "user_id", "created_at"],
   saved_lists: ["list_id", "user_id", "created_at"],
+  list_collaborators: ["list_id", "user_id", "role", "created_at"],
   follows: ["follower_id", "following_id", "created_at"],
   activity_events: ["id", "user_id", "game_id", "review_id", "list_id", "type", "message", "created_at"],
   game_platforms: ["game_id", "platform_id"],
@@ -499,8 +501,18 @@ async function hydrateListItems(queryFn: ReturnType<typeof neon>, lists: any[]) 
   const ids = unique(lists.map((list) => list.id).filter(Boolean));
   if (!ids.length) return;
   const items = await queryFn.query(
-    `select li.id, li.list_id, li.position, li.note, g.slug, g.title, g.summary, g.release_year, g.status, g.cover_url, g.hero_url, g.user_score, g.critic_score, g.rating_count, g.review_count
-     from list_items li join games g on g.id = li.game_id where li.list_id = any($1::uuid[]) order by li.position asc`,
+    `select li.id, li.list_id, li.position, li.note, g.slug, g.title, g.summary, g.release_year, g.status, g.cover_url, g.hero_url, g.user_score, g.critic_score, g.rating_count, g.review_count,
+       coalesce(array_agg(distinct p.name) filter (where p.name is not null), '{}') as platforms,
+       coalesce(array_agg(distinct ge.name) filter (where ge.name is not null), '{}') as genres
+     from list_items li
+     join games g on g.id = li.game_id
+     left join game_platforms gp on gp.game_id = g.id
+     left join platforms p on p.id = gp.platform_id
+     left join game_genres gg on gg.game_id = g.id
+     left join genres ge on ge.id = gg.genre_id
+     where li.list_id = any($1::uuid[])
+     group by li.id, li.list_id, li.position, li.note, g.slug, g.title, g.summary, g.release_year, g.status, g.cover_url, g.hero_url, g.user_score, g.critic_score, g.rating_count, g.review_count
+     order by li.position asc`,
     [ids]
   ) as any[];
   lists.forEach((list) => {
@@ -519,7 +531,9 @@ async function hydrateListItems(queryFn: ReturnType<typeof neon>, lists: any[]) 
         user_score: item.user_score,
         critic_score: item.critic_score,
         rating_count: item.rating_count,
-        review_count: item.review_count
+        review_count: item.review_count,
+        platforms: item.platforms,
+        genres: item.genres
       }
     }));
   });

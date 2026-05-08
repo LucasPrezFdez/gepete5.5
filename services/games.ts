@@ -34,6 +34,21 @@ type ExploreGamesParams = {
   sort?: GameSort;
 };
 
+const GLOBAL_TRENDING_QUERIES = [
+  "Counter-Strike 2",
+  "Dota 2",
+  "PUBG: Battlegrounds",
+  "Grand Theft Auto V",
+  "Rust",
+  "Apex Legends",
+  "League of Legends",
+  "Valorant",
+  "Fortnite",
+  "Minecraft",
+  "World of Warcraft",
+  "Overwatch 2"
+] as const;
+
 export type ExploreGamesResult = {
   games: Game[];
   source: "meili" | "neon" | "igdb" | "rawg" | "none";
@@ -56,18 +71,77 @@ export type IgdbScoreSummary = {
 
 export async function getHomeCollections() {
   const [trending, upcoming, newReleases, topRated] = await Promise.all([
-    getExploreGames({ pageSize: 12, sort: "popular" }),
+    getGlobalTrendingGames(12),
     getExploreGames({ status: "upcoming", pageSize: 12, sort: "upcoming" }),
     getExploreGames({ pageSize: 12, sort: "recent" }),
     getExploreGames({ pageSize: 12, sort: "score", scoreMin: 7 })
   ]);
 
   return {
-    trending: trending.games.slice(0, 6),
+    trending: trending.slice(0, 6),
     topRated: topRated.games.slice(0, 6),
     upcoming: upcoming.games.slice(0, 6),
     newReleases: newReleases.games.slice(0, 6)
   };
+}
+
+async function getGlobalTrendingGames(limit: number) {
+  const fallbackPromise = getExploreGames({ pageSize: Math.max(24, limit * 2), sort: "popular" })
+    .then((result) => result.games)
+    .catch(() => [] as Game[]);
+
+  const trendMatches = await Promise.all(
+    GLOBAL_TRENDING_QUERIES.map((query) => resolveTrendingGame(query))
+  );
+  const fallback = await fallbackPromise;
+
+  return dedupeGames([...trendMatches.filter(Boolean), ...fallback] as Game[]).slice(0, limit);
+}
+
+async function resolveTrendingGame(query: string) {
+  try {
+    const databaseResult = await getExploreGamesFromDatabase({ query, pageSize: 3, sort: "popular" });
+    const match = pickBestTrendMatch(query, databaseResult.games);
+    if (match) return match;
+  } catch {
+    // If the local catalog is unavailable or stale, resolve the trend from the configured external API.
+  }
+
+  const externalResult = await getExploreGamesFromExternal({ query, pageSize: 3, sort: "popular" });
+  return pickBestTrendMatch(query, externalResult.games) ?? externalResult.games[0] ?? null;
+}
+
+function pickBestTrendMatch(query: string, games: Game[]) {
+  if (!games.length) return null;
+
+  const normalizedQuery = normalizeTrendTitle(query);
+  return (
+    games.find((game) => normalizeTrendTitle(game.title) === normalizedQuery) ??
+    games.find((game) => normalizeTrendTitle(game.title).includes(normalizedQuery)) ??
+    games[0]
+  );
+}
+
+function normalizeTrendTitle(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function dedupeGames(games: Game[]) {
+  const seen = new Set<string>();
+  const deduped: Game[] = [];
+
+  for (const game of games) {
+    const key = game.slug || normalizeTrendTitle(game.title);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(game);
+  }
+
+  return deduped;
 }
 
 export async function getExploreGames(params: ExploreGamesParams = {}): Promise<ExploreGamesResult> {
@@ -75,7 +149,17 @@ export async function getExploreGames(params: ExploreGamesParams = {}): Promise<
   const pageSize = getPositiveInteger(params.pageSize, IGDB_PAGE_SIZE, 100);
   const query = params.query?.trim() || undefined;
   const normalizedParams = { ...params, query, page, pageSize };
-  const errors: string[] = [];
+  const fallbackErrors: string[] = [];
+  const shouldUseExternalCatalog = canUseExternalCatalog(normalizedParams);
+
+  if (shouldUseExternalCatalog) {
+    const externalResult = await getExploreGamesFromExternal(normalizedParams);
+    if (externalResult.source !== "none") {
+      return { ...externalResult, error: undefined };
+    }
+
+    if (externalResult.error) fallbackErrors.push(externalResult.error);
+  }
 
   try {
     const meili = await searchGames(normalizedParams);
@@ -94,22 +178,30 @@ export async function getExploreGames(params: ExploreGamesParams = {}): Promise<
       };
     }
   } catch (error) {
-    errors.push(getReadableSearchError(error));
+    fallbackErrors.push(getReadableSearchError(error));
   }
 
   try {
     const databaseResult = await getExploreGamesFromDatabase(normalizedParams);
     if (databaseResult.games.length > 0 || hasCatalogFilters(normalizedParams)) {
-      await bestEffortIndexGames(databaseResult.games);
-      return { ...databaseResult, error: errors.join(" ") || undefined };
+      void bestEffortIndexGames(databaseResult.games);
+      return databaseResult;
     }
   } catch (error) {
-    errors.push(getReadableDatabaseError(error));
+    fallbackErrors.push(getReadableDatabaseError(error));
   }
 
-  const externalResult = await getExploreGamesFromExternal(normalizedParams);
-  const combinedError = [errors.join(" "), externalResult.error].filter(Boolean).join(" ").trim();
-  return { ...externalResult, error: combinedError || undefined };
+  if (!shouldUseExternalCatalog) {
+    const externalResult = await getExploreGamesFromExternal(normalizedParams);
+    if (externalResult.source !== "none") {
+      return { ...externalResult, error: undefined };
+    }
+
+    if (externalResult.error) fallbackErrors.push(externalResult.error);
+  }
+
+  const combinedError = fallbackErrors.filter(Boolean).join(" ").trim();
+  return emptyApiResult({ query, page, pageSize, error: combinedError || "No se pudieron cargar videojuegos." });
 }
 
 export async function getExploreGamesFromRawg({
@@ -119,10 +211,10 @@ export async function getExploreGamesFromRawg({
   sort
 }: ExploreGamesParams = {}): Promise<ExploreGamesResult> {
   try {
-    const rawgGames = await listRawgGames({ query, page, pageSize, ordering: getRawgOrdering(sort) });
+    const rawgGames = await listRawgGames({ query, page, pageSize, ordering: getRawgOrdering(sort), dates: getRawgDateRange(sort) });
     const games = rawgGames.results.map((game) => toGame(normalizeRawgGame(game)));
-    await bestEffortPersistGames(rawgGames.results.map(normalizeRawgGame));
-    await bestEffortIndexGames(games);
+    void bestEffortPersistGames(rawgGames.results.map(normalizeRawgGame));
+    void bestEffortIndexGames(games);
 
     return {
       games,
@@ -175,8 +267,8 @@ export async function getGameBySlug(slug: string) {
     if (igdbGame) {
       const normalized = normalizeIgdbGame(igdbGame);
       const game = toGame(normalized);
-      await bestEffortPersistGames([normalized]);
-      await bestEffortIndexGames([game]);
+      void bestEffortPersistGames([normalized]);
+      void bestEffortIndexGames([game]);
       return withCommunityStats(game);
     }
   } catch {
@@ -187,8 +279,8 @@ export async function getGameBySlug(slug: string) {
     const rawgGame = await getRawgGameById(slug);
     const normalized = normalizeRawgGame(rawgGame);
     const game = toGame(normalized);
-    await bestEffortPersistGames([normalized]);
-    await bestEffortIndexGames([game]);
+    void bestEffortPersistGames([normalized]);
+    void bestEffortIndexGames([game]);
     return withCommunityStats(game);
   } catch {
     return null;
@@ -198,11 +290,11 @@ export async function getGameBySlug(slug: string) {
 async function getExploreGamesFromExternal(params: ExploreGamesParams): Promise<ExploreGamesResult> {
   const { query, page = 1, pageSize = IGDB_PAGE_SIZE, sort } = params;
   try {
-    const igdbGames = await listIgdbGames({ query, page, pageSize });
+    const igdbGames = await listIgdbGames({ query, page, pageSize, sort });
     const normalized = igdbGames.results.map(normalizeIgdbGame);
     const games = normalized.map(toGame);
-    await bestEffortPersistGames(normalized);
-    await bestEffortIndexGames(games);
+    void bestEffortPersistGames(normalized);
+    void bestEffortIndexGames(games);
 
     return {
       games,
@@ -220,12 +312,13 @@ async function getExploreGamesFromExternal(params: ExploreGamesParams): Promise<
         query,
         page,
         pageSize: Math.min(pageSize, RAWG_PAGE_SIZE),
-        ordering: getRawgOrdering(sort)
+        ordering: getRawgOrdering(sort),
+        dates: getRawgDateRange(sort)
       });
       const normalized = rawgGames.results.map(normalizeRawgGame);
       const games = normalized.map(toGame);
-      await bestEffortPersistGames(normalized);
-      await bestEffortIndexGames(games);
+      void bestEffortPersistGames(normalized);
+      void bestEffortIndexGames(games);
 
       return {
         games,
@@ -252,6 +345,7 @@ async function getExploreGamesFromExternal(params: ExploreGamesParams): Promise<
 async function getExploreGamesFromDatabase(params: ExploreGamesParams): Promise<ExploreGamesResult> {
   const page = getPositiveInteger(params.page, 1);
   const pageSize = getPositiveInteger(params.pageSize, IGDB_PAGE_SIZE, 100);
+  const effectiveStatus = getEffectiveCatalogStatus(params);
   const client = createServiceDatabaseClient();
   let query = client
     .from("games")
@@ -261,8 +355,12 @@ async function getExploreGamesFromDatabase(params: ExploreGamesParams): Promise<
     );
 
   if (params.query) query = query.ilike("title", `%${params.query}%`);
-  if (params.status) query = query.eq("status", params.status);
-  if (params.year) query = query.eq("release_year", params.year);
+  if (effectiveStatus) query = query.eq("status", effectiveStatus);
+  if (params.year) {
+    query = query.eq("release_year", params.year);
+  } else if (params.sort === "upcoming") {
+    query = query.gte("release_year", new Date().getFullYear());
+  }
   if (params.scoreMin) query = query.gte("user_score", params.scoreMin);
 
   switch (params.sort) {
@@ -273,13 +371,13 @@ async function getExploreGamesFromDatabase(params: ExploreGamesParams): Promise<
       query = query.order("release_year", { ascending: false, nullsFirst: false });
       break;
     case "upcoming":
-      query = query.eq("status", "upcoming").order("release_year", { ascending: true, nullsFirst: false });
+      query = query.order("release_year", { ascending: true, nullsFirst: false }).order("popularity_score", { ascending: false });
       break;
     case "reviewed":
       query = query.order("review_count", { ascending: false }).order("rating_count", { ascending: false });
       break;
     default:
-      query = query.order("popularity_score", { ascending: false }).order("rating_count", { ascending: false });
+      query = query.order("rating_count", { ascending: false }).order("review_count", { ascending: false }).order("user_score", { ascending: false });
   }
 
   const from = (page - 1) * pageSize;
@@ -456,7 +554,11 @@ export async function persistExternalGame(externalGame: NormalizedExternalGame) 
 }
 
 async function bestEffortPersistGames(games: NormalizedExternalGame[]) {
-  await Promise.allSettled(games.map((game) => persistExternalGame(game)));
+  try {
+    await Promise.allSettled(games.map((game) => persistExternalGame(game)));
+  } catch {
+    // background task — swallow errors so unhandled rejections don't crash the runtime
+  }
 }
 
 async function bestEffortIndexGames(games: Game[]) {
@@ -618,7 +720,17 @@ function getReadableDatabaseError(error: unknown) {
 }
 
 function hasCatalogFilters(params: ExploreGamesParams) {
-  return Boolean(params.query || params.platform || params.genre || params.year || params.status || params.scoreMin || params.sort);
+  return Boolean(params.query || params.platform || params.genre || params.year || params.status || params.scoreMin);
+}
+
+function canUseExternalCatalog(params: ExploreGamesParams) {
+  return !params.platform && !params.genre && !params.year && !params.status && !params.scoreMin;
+}
+
+function getEffectiveCatalogStatus(params: ExploreGamesParams) {
+  if (params.sort === "upcoming") return "upcoming";
+  if (params.sort === "recent" && !params.status) return "released";
+  return params.status;
 }
 
 function getPositiveInteger(value: unknown, fallback: number, max?: number) {
@@ -640,6 +752,20 @@ function getRawgOrdering(sort?: GameSort) {
     default:
       return "-added";
   }
+}
+
+function getRawgDateRange(sort?: GameSort) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (sort === "recent") {
+    return `1970-01-01,${today}`;
+  }
+
+  if (sort === "upcoming") {
+    return `${today},2100-12-31`;
+  }
+
+  return undefined;
 }
 
 export async function getIgdbScoreSummaryByGameSlug(slug: string): Promise<IgdbScoreSummary | null> {

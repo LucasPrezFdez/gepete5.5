@@ -1,6 +1,6 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { ListExperience } from "@/components/lists/ListExperience";
-import { communityLists } from "@/data/community";
+import { communityLists, type CommunityListGame } from "@/data/community";
 import { getExploreGames } from "@/services/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import { LIST_WITH_ITEMS_SELECT, listFromRow } from "@/services/lists";
@@ -27,7 +27,9 @@ export default async function ListPage({ params }: { params: Params }) {
 
   const fallback = communityLists.find((item) => item.slug === slug);
   if (fallback) {
-    const gameResults = await Promise.all(fallback.games.map((title) => getExploreGames({ query: title, pageSize: 1 })));
+    const gameResults = await Promise.all(
+      fallback.games.map((game) => getExploreGames({ query: getCommunityListGameTitle(game), pageSize: 1 }))
+    );
     const games = gameResults.flatMap((result) => result.games.slice(0, 1));
     return <ListExperience slug={slug} initialList={{
       id: slug,
@@ -44,6 +46,10 @@ export default async function ListPage({ params }: { params: Params }) {
   }
 
   return <ListExperience slug={slug} initialList={null} />;
+}
+
+function getCommunityListGameTitle(game: CommunityListGame) {
+  return typeof game === "string" ? game : game.title;
 }
 
 async function getPublicDatabaseList(slug: string) {

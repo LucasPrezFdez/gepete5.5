@@ -24,7 +24,7 @@ export function GameSearchBar({ compact = false }: { compact?: boolean }) {
     const timeout = window.setTimeout(async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/search/games??q=${encodeURIComponent(normalizedQuery)}&pageSize=5`, {
+        const response = await fetch(`/api/search/games?q=${encodeURIComponent(normalizedQuery)}&pageSize=5`, {
           signal: controller.signal
         });
         const payload = await response.json();

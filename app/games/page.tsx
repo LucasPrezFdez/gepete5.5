@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import type { GameSort } from "@/data/games";
 import { getExploreGames } from "@/services/games";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

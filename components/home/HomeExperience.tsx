@@ -14,7 +14,7 @@ import {
 } from "react";
 import Link from "next/link";
 import type { Game } from "@/data/games";
-import { communityLists } from "@/data/community";
+import { communityLists as fallbackCommunityLists, type CommunityListGame, type CommunityListSeed } from "@/data/community";
 import { arcadeTheme, type HeadlinePart, type HomeTheme } from "@/lib/theme";
 import { formatCompactNumber, slugify } from "@/lib/utils";
 
@@ -25,7 +25,13 @@ type Platform = {
   icon: string;
   count: number;
 };
-type CommunityList = (typeof communityLists)[number] & { curator?: string };
+type HomeCollections = Partial<{
+  trending: Game[];
+  topRated: Game[];
+  upcoming: Game[];
+  newReleases: Game[];
+}>;
+type CommunityList = CommunityListSeed & { curator?: string };
 
 const ThemeContext = createContext<HomeTheme | null>(null);
 
@@ -44,6 +50,22 @@ function enrichGames(games: Game[]): EnhancedGame[] {
     ...game,
     accent: accentPool[index % accentPool.length]
   }));
+}
+
+function mergeGameLists(lists: Array<Game[] | undefined>): Game[] {
+  const seen = new Set<string>();
+  const merged: Game[] = [];
+
+  for (const list of lists) {
+    for (const game of list ?? []) {
+      const key = game.slug || game.title;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(game);
+    }
+  }
+
+  return merged;
 }
 
 function platformIcon(name: string) {
@@ -108,16 +130,30 @@ function useInView<T extends HTMLElement = HTMLDivElement>() {
 }
 
 export function HomeExperience({
+  collections,
+  communityLists,
   initialGames,
   theme = arcadeTheme
 }: {
+  collections?: HomeCollections;
+  communityLists?: CommunityListSeed[];
   initialGames?: Game[];
   theme?: HomeTheme;
 }) {
   const scrollY = useWindowScrollY();
-  const games = useMemo(() => enrichGames(initialGames ?? []), [initialGames]);
+  const collectionGames = useMemo(
+    () => mergeGameLists([collections?.trending, collections?.topRated, collections?.upcoming, collections?.newReleases]),
+    [collections?.newReleases, collections?.topRated, collections?.trending, collections?.upcoming]
+  );
+  const games = useMemo(
+    () => enrichGames(initialGames?.length ? initialGames : collectionGames),
+    [collectionGames, initialGames]
+  );
   const platforms = useMemo(() => buildPlatforms(games), [games]);
-  const lists = communityLists as CommunityList[];
+  const lists = useMemo(
+    () => [...(communityLists?.length ? communityLists : fallbackCommunityLists)].sort((a, b) => b.likes - a.likes) as CommunityList[],
+    [communityLists]
+  );
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
   const [openGame, setOpenGame] = useState<EnhancedGame | null>(null);
@@ -151,16 +187,32 @@ export function HomeExperience({
     return result;
   }, [activeFilter, games, query]);
 
-  const trending = filtered.slice(0, 6);
-  const topRated = [...filtered]
-    .filter((game) => game.userScore > 0)
-    .sort((a, b) => b.userScore - a.userScore)
-    .slice(0, 8);
-  const upcoming = filtered.filter((game) => game.status !== "released");
-  const newReleases = [...filtered]
-    .filter((game) => game.userScore > 0)
-    .sort((a, b) => b.year - a.year)
-    .slice(0, 8);
+  const trending = useMemo(
+    () => enrichGames(collections?.trending?.length ? collections.trending : filtered).slice(0, 6),
+    [collections?.trending, filtered]
+  );
+  const topRated = useMemo(
+    () =>
+      enrichGames(
+        collections?.topRated?.length
+          ? collections.topRated
+          : [...filtered].filter((game) => game.userScore > 0).sort((a, b) => b.userScore - a.userScore)
+      ).slice(0, 8),
+    [collections?.topRated, filtered]
+  );
+  const upcoming = useMemo(
+    () => enrichGames(collections?.upcoming?.length ? collections.upcoming : filtered.filter((game) => game.status !== "released")),
+    [collections?.upcoming, filtered]
+  );
+  const newReleases = useMemo(
+    () =>
+      enrichGames(
+        collections?.newReleases?.length
+          ? collections.newReleases
+          : [...filtered].filter((game) => game.userScore > 0).sort((a, b) => b.year - a.year)
+      ).slice(0, 8),
+    [collections?.newReleases, filtered]
+  );
 
   const isSearching = query.trim().length >= 2 || activeFilter !== "all";
 
@@ -171,7 +223,7 @@ export function HomeExperience({
           <div className="max-w-xl rounded-3xl border border-white/10 bg-white/5 p-8">
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-electric">API requerida</p>
             <h1 className="mt-3 text-4xl font-black">No hay juegos para mostrar</h1>
-            <p className="mt-3 text-muted">Configura IGDB o RAWG en .env para cargar el cat??logo desde la API.</p>
+            <p className="mt-3 text-muted">Configura IGDB o RAWG en .env para cargar el catálogo desde la API.</p>
           </div>
         </section>
       </ThemeContext.Provider>
@@ -217,7 +269,7 @@ export function HomeExperience({
             </Section>
           ) : (
             <>
-              <Section eyebrow="Tendencias" href="/games" title="Lo que est? jugando todo el mundo">
+              <Section eyebrow="Tendencias globales" href="/games?sort=popular" title="Lo que está jugando el mundo ahora">
                 <DragCarousel>
                   {trending.map((game, index) => (
                     <div key={game.slug} style={{ flex: "0 0 240px", scrollSnapAlign: "start" }}>
@@ -231,11 +283,11 @@ export function HomeExperience({
                 <RankingList games={topRated} onOpen={setOpenGame} />
               </Section>
 
-              <Section eyebrow="Hype" href="/games??status=upcoming" title="Próximos lanzamientos">
+              <Section eyebrow="Hype" href="/games?status=upcoming" title="Próximos lanzamientos">
                 <Grid games={upcoming.length ? upcoming : games.slice(0, 4)} />
               </Section>
 
-              <Section eyebrow="Recientes" href="/games??sort=recent" title="Nuevos lanzamientos">
+              <Section eyebrow="Recientes" href="/games?sort=recent" title="Nuevos lanzamientos">
                 <DragCarousel>
                   {newReleases.map((game) => (
                     <div key={game.slug} style={{ flex: "0 0 240px", scrollSnapAlign: "start" }}>
@@ -247,7 +299,7 @@ export function HomeExperience({
 
               <PlatformSection platforms={platforms} />
 
-              <Section eyebrow="Comunidad" href="/lists/rpg-turnos-imprescindibles" title="Listas que est?n de moda">
+              <Section eyebrow="Comunidad" href="/lists/rpg-turnos-imprescindibles" title="Listas que están de moda">
                 <ListsGrid games={games} lists={lists} />
               </Section>
 
@@ -399,7 +451,7 @@ function Hero({
                     animation: "home-pulse 1.8s ease-in-out infinite"
                   }}
                 />
-                Beta · Videojuegos · Rese?as · Listas
+                Beta · Videojuegos · Reseñas · Listas
               </div>
 
               <h1
@@ -454,7 +506,7 @@ function Hero({
 
               <div className="mt-10 grid max-w-md grid-cols-3 gap-4 pt-6" style={{ borderTop: `1px solid ${theme.border}` }}>
                 <Stat label="Juegos" value="48.2k" />
-                <Stat label="Rese?as" value="1.4M" />
+                <Stat label="Reseñas" value="1.4M" />
                 <Stat label="Jugadores" value="220k" />
               </div>
             </div>
@@ -637,7 +689,12 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
         }}
       >
         <img alt={game.title} className="absolute inset-0 h-full w-full object-cover" src={game.coverUrl} />
-        <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, transparent 30%, rgba(0,0,0,.85) 100%)" }} />
+        <Link
+          aria-label={`Ir al juego ${game.title}`}
+          className="absolute inset-0"
+          href={`/games/${game.slug}`}
+          style={{ background: "linear-gradient(180deg, transparent 30%, rgba(0,0,0,.85) 100%)" }}
+        />
 
         <div className="absolute left-4 top-4" style={{ transform: "translateZ(50px)" }}>
           <div
@@ -927,7 +984,7 @@ function SectionHeader({
       {href && (
         <Link className="group flex items-center gap-1.5 text-sm font-bold transition" href={href} style={{ color: theme.accent }}>
           Ver todo
-          <span className="inline-block transition-transform group-hover:translate-x-1">?</span>
+          <span aria-hidden="true" className="inline-block transition-transform group-hover:translate-x-1">→</span>
         </Link>
       )}
     </div>
@@ -957,7 +1014,7 @@ function Marquee({ items, speed = 50 }: { items: Array<{ label: string; value: s
             style={{ color: theme.marqueeFg, fontFamily: theme.fontDisplay }}
           >
             <span>{item.label}</span>
-            <span style={{ color: theme.accent }}>?</span>
+            <span aria-hidden="true" style={{ color: theme.accent }}>★</span>
             <span style={{ color: theme.marqueeAccent, fontFamily: theme.fontMono, fontSize: 18 }}>{item.value}</span>
           </span>
         ))}
@@ -1411,7 +1468,7 @@ function PlatformCard({ delay, platform }: { delay: number; platform: Platform }
           {platform.name}
         </div>
         <div className="mt-1.5 text-sm" style={{ color: theme.muted }}>
-          Explora juegos, rankings y pr?ximos.
+          Explora juegos, rankings y próximos.
         </div>
         <div className="mt-4 flex items-center gap-1 text-sm font-bold" style={{ color: hover ? color : theme.muted, transition: "color .2s" }}>
           Explorar{" "}
@@ -1445,10 +1502,7 @@ function CommunityListCard({
 }) {
   const theme = useTheme();
   const [hover, setHover] = useState(false);
-  const covers = list.games
-    .map((title) => games.find((game) => game.title === title)?.coverUrl)
-    .filter(Boolean) as string[];
-  const fallbackCovers = covers.length ? covers : games.slice(0, 3).map((game) => game.coverUrl);
+  const previewGames = list.games.slice(0, 3).map((item) => resolveCommunityPreviewGame(item, games));
 
   return (
     <Link
@@ -1466,9 +1520,9 @@ function CommunityListCard({
       }}
     >
       <div className="relative h-44 overflow-hidden" style={{ background: theme.chipBg }}>
-        {fallbackCovers.slice(0, 3).map((cover, index) => (
+        {previewGames.map((game, index) => (
           <div
-            key={`${cover}-${index}`}
+            key={`${game.title}-${index}`}
             className="absolute overflow-hidden rounded-lg"
             style={{
               width: 110,
@@ -1484,7 +1538,18 @@ function CommunityListCard({
               zIndex: index + 1
             }}
           >
-            <img alt="" className="h-full w-full object-cover" src={cover} />
+            {game.coverUrl ? (
+              <img alt={game.title} className="h-full w-full object-cover" src={game.coverUrl} />
+            ) : (
+              <div
+                aria-label={`Portada no disponible para ${game.title}`}
+                className="h-full w-full"
+                style={{
+                  background: `linear-gradient(135deg, ${theme.cardBg}, ${theme.chipBg})`,
+                  boxShadow: `inset 0 0 0 1px ${theme.border}`
+                }}
+              />
+            )}
           </div>
         ))}
         <div
@@ -1496,7 +1561,7 @@ function CommunityListCard({
       </div>
       <div className="p-5">
         <div className="mb-1 text-[11px] font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
-          {list.curator ?? "Curadur?a comunitaria"}
+          {list.curator ?? "Curaduría comunitaria"}
         </div>
         <h3 className="text-[18px] font-black leading-tight" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
           {list.title}
@@ -1511,6 +1576,22 @@ function CommunityListCard({
       </div>
     </Link>
   );
+}
+
+function resolveCommunityPreviewGame(item: CommunityListGame, games: EnhancedGame[]) {
+  const seed = typeof item === "string" ? { title: item, coverUrl: null } : { title: item.title, coverUrl: item.coverUrl ?? null };
+  const matched = games.find((game) => normalizeTitleForMatch(game.title) === normalizeTitleForMatch(seed.title));
+  return {
+    title: seed.title,
+    coverUrl: seed.coverUrl ?? matched?.coverUrl ?? null
+  };
+}
+
+function normalizeTitleForMatch(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function FinalCTA({ games }: { games: EnhancedGame[] }) {
@@ -1563,7 +1644,7 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
                 fontFamily: theme.fontMono
               }}
             >
-              ? ?nete a la comunidad
+              Únete a la comunidad
             </div>
             <h2
               className="font-black leading-[0.95] tracking-[-0.03em]"
@@ -1601,7 +1682,7 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
                   border: `1px solid ${theme.border}`
                 }}
               >
-                Explorar juegos ?
+                Explorar juegos →
               </Link>
             </div>
           </div>

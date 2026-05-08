@@ -1,4 +1,5 @@
-﻿import { slugify } from "@/lib/utils";
+import { slugify } from "@/lib/utils";
+import type { GameSort } from "@/data/games";
 
 const IGDB_API_BASE_URL = "https://api.igdb.com/v4";
 const TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token";
@@ -72,6 +73,7 @@ type IgdbGamesQuery = {
   query?: string;
   page?: number;
   pageSize?: number;
+  sort?: GameSort;
 };
 
 export type IgdbGamesResult = {
@@ -118,6 +120,15 @@ function escapeIgdbString(value: string) {
   return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
 }
 
+function getUnixTimestamp(date: Date) {
+  return Math.floor(date.getTime() / 1000);
+}
+
+function getTodayUnixTimestamp() {
+  const now = new Date();
+  return getUnixTimestamp(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())));
+}
+
 async function getIgdbAccessToken() {
   const now = Date.now();
 
@@ -138,18 +149,18 @@ async function getIgdbAccessToken() {
   });
 
   if (!response.ok) {
-    throw new IgdbApiError(`Twitch OAuth respondi? con estado ${response.status}.`, "auth-failed");
+    throw new IgdbApiError(`Twitch OAuth respondió con estado ${response.status}.`, "auth-failed");
   }
 
   let data: IgdbTokenResponse;
   try {
     data = (await response.json()) as IgdbTokenResponse;
   } catch {
-    throw new IgdbApiError("Twitch OAuth devolvi? una respuesta inválida.", "invalid-response");
+    throw new IgdbApiError("Twitch OAuth devolvió una respuesta inválida.", "invalid-response");
   }
 
   if (!data.access_token) {
-    throw new IgdbApiError("Twitch OAuth no devolvi? access_token.", "auth-failed");
+    throw new IgdbApiError("Twitch OAuth no devolvió access_token.", "auth-failed");
   }
 
   cachedToken = {
@@ -176,13 +187,13 @@ async function fetchIgdb<T>(endpoint: string, body: string) {
   });
 
   if (!response.ok) {
-    throw new IgdbApiError(`IGDB respondi? con estado ${response.status}.`, "request-failed");
+    throw new IgdbApiError(`IGDB respondió con estado ${response.status}.`, "request-failed");
   }
 
   try {
     return (await response.json()) as T;
   } catch {
-    throw new IgdbApiError("IGDB devolvi? una respuesta inválida.", "invalid-response");
+    throw new IgdbApiError("IGDB devolvió una respuesta inválida.", "invalid-response");
   }
 }
 
@@ -190,20 +201,33 @@ function buildGamesQuery({
   query,
   offset,
   pageSize,
-  includeLimit = true
+  includeLimit = true,
+  sort
 }: {
   query?: string;
   offset?: number;
   pageSize?: number;
   includeLimit?: boolean;
+  sort?: GameSort;
 }) {
   const normalizedQuery = query?.trim();
+  const today = getTodayUnixTimestamp();
+  const whereConditions = ["game_type = 0"];
+
+  if (sort === "recent") {
+    whereConditions.push(`first_release_date <= ${today}`);
+  }
+
+  if (sort === "upcoming") {
+    whereConditions.push(`first_release_date > ${today}`);
+  }
+
   const clauses = [
     normalizedQuery ? `search "${escapeIgdbString(normalizedQuery)}";` : "",
     "fields id,name,slug,summary,first_release_date,cover.url,platforms.name,genres.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,rating,total_rating,rating_count,total_rating_count,aggregated_rating,game_type.type;",
-    // game_type 0 = Main Game. `category` est? deprecated en la API actual.
-    "where game_type = 0;",
-    normalizedQuery ? "" : "sort total_rating_count desc;",
+    // game_type 0 = Main Game. `category` está deprecated en la API actual.
+    `where ${whereConditions.join(" & ")};`,
+    getIgdbSortClause(sort),
     includeLimit ? `limit ${pageSize ?? IGDB_PAGE_SIZE};` : "",
     includeLimit ? `offset ${offset ?? 0};` : ""
   ];
@@ -211,11 +235,37 @@ function buildGamesQuery({
   return clauses.filter(Boolean).join("\n");
 }
 
-async function countIgdbGames(query?: string) {
+function getIgdbSortClause(sort?: GameSort) {
+  switch (sort) {
+    case "score":
+      return "sort total_rating desc;";
+    case "recent":
+      return "sort first_release_date desc;";
+    case "upcoming":
+      return "sort first_release_date asc;";
+    case "reviewed":
+    case "popular":
+    default:
+      return "sort total_rating_count desc;";
+  }
+}
+
+async function countIgdbGames(query?: string, sort?: GameSort) {
   const normalizedQuery = query?.trim();
+  const today = getTodayUnixTimestamp();
+  const whereConditions = ["game_type = 0"];
+
+  if (sort === "recent") {
+    whereConditions.push(`first_release_date <= ${today}`);
+  }
+
+  if (sort === "upcoming") {
+    whereConditions.push(`first_release_date > ${today}`);
+  }
+
   const body = [
     normalizedQuery ? `search "${escapeIgdbString(normalizedQuery)}";` : "",
-    "where game_type = 0;"
+    `where ${whereConditions.join(" & ")};`
   ]
     .filter(Boolean)
     .join("\n");
@@ -227,15 +277,16 @@ async function countIgdbGames(query?: string) {
 export async function listIgdbGames({
   query,
   page = 1,
-  pageSize = IGDB_PAGE_SIZE
+  pageSize = IGDB_PAGE_SIZE,
+  sort
 }: IgdbGamesQuery = {}): Promise<IgdbGamesResult> {
   const safePage = clampPositiveInteger(page, 1);
   const safePageSize = clampPositiveInteger(pageSize, IGDB_PAGE_SIZE, IGDB_MAX_PAGE_SIZE);
   const normalizedQuery = query?.trim();
   const offset = (safePage - 1) * safePageSize;
   const [results, count] = await Promise.all([
-    fetchIgdb<IgdbGame[]>("games", buildGamesQuery({ query: normalizedQuery, offset, pageSize: safePageSize })),
-    countIgdbGames(normalizedQuery)
+    fetchIgdb<IgdbGame[]>("games", buildGamesQuery({ query: normalizedQuery, offset, pageSize: safePageSize, sort })),
+    countIgdbGames(normalizedQuery, sort)
   ]);
   const hasNextPage = offset + safePageSize < count;
 
@@ -290,7 +341,7 @@ function namesFromCompanies(companies: IgdbInvolvedCompany[] | undefined, key: "
 }
 
 export function normalizeIgdbGame(rawGame: IgdbGame): NormalizedExternalGame {
-  const title = rawGame.name ?? "Juego sin t?tulo";
+  const title = rawGame.name ?? "Juego sin título";
   const releaseDate = rawGame.first_release_date
     ? new Date(rawGame.first_release_date * 1000).toISOString().slice(0, 10)
     : undefined;

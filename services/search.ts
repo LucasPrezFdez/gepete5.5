@@ -136,13 +136,22 @@ function getSort(sort?: GameSort) {
   }
 }
 
+function getEffectiveStatus(params: GameSearchParams) {
+  if (params.sort === "upcoming") return "upcoming";
+  if (params.sort === "recent" && !params.status) return "released";
+  return params.status;
+}
+
 export async function searchGames(params: GameSearchParams): Promise<SearchGamesResult> {
   const index = await ensureGamesIndex();
+  const effectiveStatus = getEffectiveStatus(params);
+  const currentYear = new Date().getFullYear();
   const filters = [
     params.platform ? `platforms = "${quoteFilterValue(params.platform)}"` : undefined,
     params.genre ? `genres = "${quoteFilterValue(params.genre)}"` : undefined,
     params.year ? `year = ${params.year}` : undefined,
-    params.status ? `status = "${quoteFilterValue(params.status)}"` : undefined,
+    effectiveStatus ? `status = "${quoteFilterValue(effectiveStatus)}"` : undefined,
+    params.sort === "upcoming" && !params.year ? `year >= ${currentYear}` : undefined,
     params.scoreMin ? `userScore >= ${params.scoreMin}` : undefined
   ].filter(Boolean) as string[];
   const page = Math.max(1, Math.floor(Number(params.page) || 1));

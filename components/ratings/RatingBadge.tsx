@@ -12,13 +12,20 @@ export function RatingBadge({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-xl border px-3 py-2",
-        scoreTone(score)
+        "inline-flex items-center gap-1.5 rounded-lg border px-2 py-1",
+        scoreTone(score),
+        "bg-black/35 text-foreground/90 shadow-sm backdrop-blur-sm"
       )}
       aria-label={`${label}: ${score ? score.toFixed(1) : "sin puntuación"}`}
     >
-      <span className="text-base font-black">{score ? score.toFixed(1) : "?"}</span>
-      {!compact && <span className="text-xs opacity-80">{label}</span>}
+      <span className="text-sm font-extrabold tabular-nums leading-none">
+        {score ? score.toFixed(1) : "?"}
+      </span>
+      {!compact && (
+        <span className="text-[10px] font-medium leading-none opacity-80">
+          {label}
+        </span>
+      )}
     </div>
   );
 }

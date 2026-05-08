@@ -38,6 +38,7 @@ type RawgGamesQuery = {
   page?: number;
   pageSize?: number;
   ordering?: string;
+  dates?: string;
 };
 
 export type RawgGamesResult = {
@@ -108,7 +109,7 @@ async function fetchRawg<T>(
 
   if (!response.ok) {
     throw new RawgApiError(
-      `RAWG respondi? con estado ${response.status}.`,
+      `RAWG respondió con estado ${response.status}.`,
       "request-failed"
     );
   }
@@ -116,7 +117,7 @@ async function fetchRawg<T>(
   try {
     return (await response.json()) as T;
   } catch {
-    throw new RawgApiError("RAWG devolvi? una respuesta inválida.", "invalid-response");
+    throw new RawgApiError("RAWG devolvió una respuesta inválida.", "invalid-response");
   }
 }
 
@@ -124,7 +125,8 @@ export async function listRawgGames({
   query,
   page = 1,
   pageSize = RAWG_PAGE_SIZE,
-  ordering = "-added"
+  ordering = "-added",
+  dates
 }: RawgGamesQuery = {}): Promise<RawgGamesResult> {
   const safePage = clampPositiveInteger(page, 1);
   const safePageSize = clampPositiveInteger(pageSize, RAWG_PAGE_SIZE, RAWG_MAX_PAGE_SIZE);
@@ -134,6 +136,7 @@ export async function listRawgGames({
     page: safePage,
     page_size: safePageSize,
     ordering,
+    dates,
     search: normalizedQuery || undefined
   });
 
@@ -159,7 +162,7 @@ export async function getRawgGameById(id: string) {
 }
 
 export function normalizeRawgGame(rawGame: RawgGameListItem | RawgGameDetail): NormalizedExternalGame {
-  const title = rawGame.name ?? "Juego sin t?tulo";
+  const title = rawGame.name ?? "Juego sin título";
   const releaseDate = rawGame.released ?? undefined;
 
   return {

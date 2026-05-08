@@ -74,6 +74,7 @@ type IgdbGamesQuery = {
   page?: number;
   pageSize?: number;
   sort?: GameSort;
+  platform?: string;
 };
 
 export type IgdbGamesResult = {
@@ -202,13 +203,15 @@ function buildGamesQuery({
   offset,
   pageSize,
   includeLimit = true,
-  sort
+  sort,
+  platformId
 }: {
   query?: string;
   offset?: number;
   pageSize?: number;
   includeLimit?: boolean;
   sort?: GameSort;
+  platformId?: number | null;
 }) {
   const normalizedQuery = query?.trim();
   const today = getTodayUnixTimestamp();
@@ -220,6 +223,10 @@ function buildGamesQuery({
 
   if (sort === "upcoming") {
     whereConditions.push(`first_release_date > ${today}`);
+  }
+
+  if (typeof platformId === "number") {
+    whereConditions.push(`platforms = (${platformId})`);
   }
 
   const clauses = [
@@ -250,7 +257,7 @@ function getIgdbSortClause(sort?: GameSort) {
   }
 }
 
-async function countIgdbGames(query?: string, sort?: GameSort) {
+async function countIgdbGames(query?: string, sort?: GameSort, platformId?: number | null) {
   const normalizedQuery = query?.trim();
   const today = getTodayUnixTimestamp();
   const whereConditions = ["game_type = 0"];
@@ -261,6 +268,10 @@ async function countIgdbGames(query?: string, sort?: GameSort) {
 
   if (sort === "upcoming") {
     whereConditions.push(`first_release_date > ${today}`);
+  }
+
+  if (typeof platformId === "number") {
+    whereConditions.push(`platforms = (${platformId})`);
   }
 
   const body = [
@@ -278,15 +289,34 @@ export async function listIgdbGames({
   query,
   page = 1,
   pageSize = IGDB_PAGE_SIZE,
-  sort
+  sort,
+  platform
 }: IgdbGamesQuery = {}): Promise<IgdbGamesResult> {
   const safePage = clampPositiveInteger(page, 1);
   const safePageSize = clampPositiveInteger(pageSize, IGDB_PAGE_SIZE, IGDB_MAX_PAGE_SIZE);
   const normalizedQuery = query?.trim();
   const offset = (safePage - 1) * safePageSize;
+
+  let platformId: number | null = null;
+  if (platform) {
+    platformId = await resolveIgdbPlatformId(platform);
+    if (platformId === null) {
+      return {
+        provider: "igdb",
+        query: normalizedQuery || undefined,
+        page: safePage,
+        pageSize: safePageSize,
+        count: 0,
+        nextPage: null,
+        previousPage: safePage > 1 ? safePage - 1 : null,
+        results: []
+      };
+    }
+  }
+
   const [results, count] = await Promise.all([
-    fetchIgdb<IgdbGame[]>("games", buildGamesQuery({ query: normalizedQuery, offset, pageSize: safePageSize, sort })),
-    countIgdbGames(normalizedQuery, sort)
+    fetchIgdb<IgdbGame[]>("games", buildGamesQuery({ query: normalizedQuery, offset, pageSize: safePageSize, sort, platformId })),
+    countIgdbGames(normalizedQuery, sort, platformId)
   ]);
   const hasNextPage = offset + safePageSize < count;
 
@@ -325,6 +355,42 @@ async function resolveIgdbGenreId(name: string): Promise<number | null> {
   if (direct?.id) return direct.id;
   const partial = genres.find((genre) => (genre.name ?? "").trim().toLowerCase().includes(normalized));
   return partial?.id ?? null;
+}
+
+type IgdbPlatform = { id?: number; name?: string; slug?: string; abbreviation?: string; alternative_name?: string };
+
+let cachedPlatforms: IgdbPlatform[] | null = null;
+
+async function fetchIgdbPlatforms(): Promise<IgdbPlatform[]> {
+  if (cachedPlatforms) return cachedPlatforms;
+  const data = await fetchIgdb<IgdbPlatform[]>(
+    "platforms",
+    "fields id,name,slug,abbreviation,alternative_name; limit 500;"
+  );
+  cachedPlatforms = data ?? [];
+  return cachedPlatforms;
+}
+
+export async function resolveIgdbPlatformId(value: string): Promise<number | null> {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  const slugified = slugify(value);
+  const platforms = await fetchIgdbPlatforms();
+
+  const matchers: Array<(platform: IgdbPlatform) => boolean> = [
+    (platform) => (platform.slug ?? "").toLowerCase() === slugified,
+    (platform) => (platform.name ?? "").trim().toLowerCase() === normalized,
+    (platform) => (platform.abbreviation ?? "").trim().toLowerCase() === normalized,
+    (platform) => (platform.alternative_name ?? "").trim().toLowerCase() === normalized,
+    (platform) => (platform.name ?? "").trim().toLowerCase().includes(normalized)
+  ];
+
+  for (const match of matchers) {
+    const found = platforms.find(match);
+    if (found?.id) return found.id;
+  }
+
+  return null;
 }
 
 export type IgdbCuratedListQuery = {

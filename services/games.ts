@@ -15,7 +15,7 @@ import {
   RawgApiError,
   RAWG_PAGE_SIZE
 } from "@/services/rawg";
-import { createServiceDatabaseClient } from "@/services/database";
+import { createServiceDatabaseClient, createSqlClient } from "@/services/database";
 import { fromSearchDocument, indexGame, indexGames, searchGames } from "@/services/search";
 import { slugify } from "@/lib/utils";
 
@@ -288,9 +288,9 @@ export async function getGameBySlug(slug: string) {
 }
 
 async function getExploreGamesFromExternal(params: ExploreGamesParams): Promise<ExploreGamesResult> {
-  const { query, page = 1, pageSize = IGDB_PAGE_SIZE, sort } = params;
+  const { query, page = 1, pageSize = IGDB_PAGE_SIZE, sort, platform } = params;
   try {
-    const igdbGames = await listIgdbGames({ query, page, pageSize, sort });
+    const igdbGames = await listIgdbGames({ query, page, pageSize, sort, platform });
     const normalized = igdbGames.results.map(normalizeIgdbGame);
     const games = normalized.map(toGame);
     void bestEffortPersistGames(normalized);
@@ -346,6 +346,21 @@ async function getExploreGamesFromDatabase(params: ExploreGamesParams): Promise<
   const page = getPositiveInteger(params.page, 1);
   const pageSize = getPositiveInteger(params.pageSize, IGDB_PAGE_SIZE, 100);
   const effectiveStatus = getEffectiveCatalogStatus(params);
+
+  const restrictedIds = await getCatalogRestrictedGameIds(params);
+  if (restrictedIds && restrictedIds.length === 0) {
+    return {
+      games: [],
+      source: "neon",
+      count: 0,
+      page,
+      pageSize,
+      nextPage: null,
+      previousPage: page > 1 ? page - 1 : null,
+      query: params.query
+    };
+  }
+
   const client = createServiceDatabaseClient();
   let query = client
     .from("games")
@@ -354,6 +369,7 @@ async function getExploreGamesFromDatabase(params: ExploreGamesParams): Promise<
       { count: "exact" }
     );
 
+  if (restrictedIds) query = query.in("id", restrictedIds);
   if (params.query) query = query.ilike("title", `%${params.query}%`);
   if (effectiveStatus) query = query.eq("status", effectiveStatus);
   if (params.year) {
@@ -384,25 +400,73 @@ async function getExploreGamesFromDatabase(params: ExploreGamesParams): Promise<
   const { data, error, count } = await query.range(from, from + pageSize - 1);
   if (error) throw new Error(error.message);
 
-  let games = (data ?? []).map(gameFromDatabaseRow);
-  if (params.platform) {
-    games = games.filter((game: Game) => game.platforms.some((platform: string) => platform.toLowerCase() === params.platform?.toLowerCase()));
-  }
-  if (params.genre) {
-    games = games.filter((game: Game) => game.genres.some((genre: string) => genre.toLowerCase() === params.genre?.toLowerCase()));
-  }
-
+  const games = (data ?? []).map(gameFromDatabaseRow);
   const safeCount = count ?? games.length;
   return {
     games,
     source: "neon",
-    count: params.platform || params.genre ? games.length : safeCount,
+    count: safeCount,
     page,
     pageSize,
     nextPage: page * pageSize < safeCount ? page + 1 : null,
     previousPage: page > 1 ? page - 1 : null,
     query: params.query
   };
+}
+
+async function getCatalogRestrictedGameIds(params: ExploreGamesParams): Promise<string[] | null> {
+  if (!params.platform && !params.genre) return null;
+
+  const sql = createSqlClient();
+  const idSets: string[][] = [];
+
+  if (params.platform) {
+    const rows = (await sql.query(
+      `select gp.game_id::text as game_id
+       from game_platforms gp
+       join platforms p on p.id = gp.platform_id
+       where lower(p.name) = lower($1) or p.slug = $2`,
+      [params.platform, slugify(params.platform)]
+    )) as Array<{ game_id: string }>;
+    idSets.push(rows.map((row) => row.game_id));
+  }
+
+  if (params.genre) {
+    const rows = (await sql.query(
+      `select gg.game_id::text as game_id
+       from game_genres gg
+       join genres g on g.id = gg.genre_id
+       where lower(g.name) = lower($1) or g.slug = $2`,
+      [params.genre, slugify(params.genre)]
+    )) as Array<{ game_id: string }>;
+    idSets.push(rows.map((row) => row.game_id));
+  }
+
+  if (idSets.length === 0) return null;
+  return intersectIdSets(idSets);
+}
+
+function intersectIdSets(sets: string[][]): string[] {
+  if (sets.length === 0) return [];
+  const [first, ...rest] = sets;
+  if (rest.length === 0) return Array.from(new Set(first));
+  const counters = rest.map((set) => new Set(set));
+  return Array.from(new Set(first)).filter((id) => counters.every((set) => set.has(id)));
+}
+
+export async function getPlatformBySlug(slug: string): Promise<{ id: string; slug: string; name: string } | null> {
+  try {
+    const client = createServiceDatabaseClient();
+    const { data } = await client
+      .from("platforms")
+      .select("id, slug, name")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (data) return data as { id: string; slug: string; name: string };
+  } catch {
+    // Database may be unavailable — fall back to deriving the name from the slug.
+  }
+  return null;
 }
 
 async function getGameBySlugFromDatabase(slug: string): Promise<Game | null> {
@@ -724,7 +788,8 @@ function hasCatalogFilters(params: ExploreGamesParams) {
 }
 
 function canUseExternalCatalog(params: ExploreGamesParams) {
-  return !params.platform && !params.genre && !params.year && !params.status && !params.scoreMin;
+  // IGDB filtra por plataforma de forma nativa, así que sí podemos delegar en el catálogo externo.
+  return !params.genre && !params.year && !params.status && !params.scoreMin;
 }
 
 function getEffectiveCatalogStatus(params: ExploreGamesParams) {

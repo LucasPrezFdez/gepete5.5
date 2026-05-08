@@ -28,6 +28,7 @@ type Filter =
   | { kind: "eq"; column: string; value: unknown }
   | { kind: "gte"; column: string; value: unknown }
   | { kind: "ilike"; column: string; value: string }
+  | { kind: "in"; column: string; values: unknown[] }
   | { kind: "not"; column: string; operator: string; value: unknown };
 
 type Order = { column: string; ascending: boolean; nullsFirst?: boolean };
@@ -144,6 +145,11 @@ class NeonQueryBuilder<T = any> implements PromiseLike<QueryResult<T[]>> {
 
   ilike(column: string, value: string) {
     this.filters.push({ kind: "ilike", column, value });
+    return this;
+  }
+
+  in(column: string, values: unknown[]) {
+    this.filters.push({ kind: "in", column, values });
     return this;
   }
 
@@ -349,6 +355,14 @@ function filterToSql(table: string, filter: Filter, params: unknown[]) {
   if (filter.kind === "ilike") {
     params.push(filter.value);
     return `${column} ilike $${params.length}`;
+  }
+  if (filter.kind === "in") {
+    if (filter.values.length === 0) return "false";
+    const placeholders = filter.values.map((value) => {
+      params.push(value);
+      return `$${params.length}`;
+    });
+    return `${column} in (${placeholders.join(", ")})`;
   }
   if (filter.kind === "not" && filter.operator === "is" && filter.value === null) {
     return `${column} is not null`;

@@ -1,12 +1,21 @@
 ﻿import Image from "next/image";
 import Link from "next/link";
 import { Game } from "@/data/games";
-import { formatCompactNumber } from "@/lib/utils";
+import { formatCompactNumber, prioritizePlatform } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
 
-export function GameCard({ game, priority = false }: { game: Game; priority?: boolean }) {
+export function GameCard({
+  game,
+  priority = false,
+  highlightPlatform
+}: {
+  game: Game;
+  priority?: boolean;
+  highlightPlatform?: string | null;
+}) {
   const yearLabel = game.year > 0 ? String(game.year) : "Fecha por anunciar";
+  const orderedPlatforms = prioritizePlatform(game.platforms, highlightPlatform);
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-white/10 bg-surface/85 shadow-card transition duration-300 hover:-translate-y-1 hover:border-electric/45 hover:shadow-glow">
@@ -38,7 +47,7 @@ export function GameCard({ game, priority = false }: { game: Game; priority?: bo
               {game.title}
             </h3>
             <p className="mt-1 text-sm text-muted">
-              {yearLabel} · {game.platforms.slice(0, 2).join(", ")}
+              {yearLabel} · {orderedPlatforms.slice(0, 2).join(", ")}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

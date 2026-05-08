@@ -4,13 +4,22 @@ import type { Game } from "@/data/games";
 import { GameCard } from "@/components/games/GameCard";
 import { Badge } from "@/components/ui/Badge";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
+import { prioritizePlatform } from "@/lib/utils";
 
-export function GameGrid({ games, view = "grid" }: { games: Game[]; view?: "grid" | "list" }) {
+export function GameGrid({
+  games,
+  view = "grid",
+  highlightPlatform
+}: {
+  games: Game[];
+  view?: "grid" | "list";
+  highlightPlatform?: string | null;
+}) {
   if (view === "list") {
     return (
       <div className="space-y-3">
         {games.map((game) => (
-          <GameListRow key={game.slug} game={game} />
+          <GameListRow key={game.slug} game={game} highlightPlatform={highlightPlatform} />
         ))}
       </div>
     );
@@ -19,14 +28,15 @@ export function GameGrid({ games, view = "grid" }: { games: Game[]; view?: "grid
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
       {games.map((game, index) => (
-        <GameCard key={game.slug} game={game} priority={index < 4} />
+        <GameCard key={game.slug} game={game} priority={index < 4} highlightPlatform={highlightPlatform} />
       ))}
     </div>
   );
 }
 
-function GameListRow({ game }: { game: Game }) {
+function GameListRow({ game, highlightPlatform }: { game: Game; highlightPlatform?: string | null }) {
   const yearLabel = game.year > 0 ? String(game.year) : "TBA";
+  const orderedPlatforms = prioritizePlatform(game.platforms, highlightPlatform);
   return (
     <Link
       href={`/games/${game.slug}`}
@@ -41,7 +51,7 @@ function GameListRow({ game }: { game: Game }) {
           <Badge tone={game.status === "released" ? "muted" : "lime"}>{game.status === "released" ? yearLabel : "Próximo"}</Badge>
         </div>
         <p className="mt-1 text-sm text-muted">
-          {yearLabel} · {game.developer} · {game.platforms.slice(0, 3).join(", ")}
+          {yearLabel} · {game.developer} · {orderedPlatforms.slice(0, 3).join(", ")}
         </p>
         <p className="mt-2 line-clamp-2 text-sm text-muted">{game.summary}</p>
         <div className="mt-3 flex flex-wrap gap-2">

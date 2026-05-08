@@ -19,10 +19,11 @@ import { arcadeTheme, type HeadlinePart, type HomeTheme } from "@/lib/theme";
 import { formatCompactNumber, slugify } from "@/lib/utils";
 
 type EnhancedGame = Game & { accent: string };
+type PlatformKind = "pc" | "playstation" | "xbox" | "nintendo" | "mobile" | "mac" | "linux" | "generic";
 type Platform = {
   slug: string;
   name: string;
-  icon: string;
+  kind: PlatformKind;
   count: number;
 };
 type HomeCollections = Partial<{
@@ -68,14 +69,88 @@ function mergeGameLists(lists: Array<Game[] | undefined>): Game[] {
   return merged;
 }
 
-function platformIcon(name: string) {
+function platformKind(name: string): PlatformKind {
   const value = name.toLowerCase();
-  if (value.includes("pc")) return "?";
-  if (value.includes("playstation")) return "?";
-  if (value.includes("xbox")) return "?";
-  if (value.includes("switch") || value.includes("nintendo")) return "?";
-  if (value.includes("mobile")) return "?";
-  return "?";
+  if (value.includes("playstation") || value.startsWith("ps")) return "playstation";
+  if (value.includes("xbox")) return "xbox";
+  if (value.includes("switch") || value.includes("nintendo")) return "nintendo";
+  if (value.includes("mac") || value.includes("os x")) return "mac";
+  if (value.includes("linux")) return "linux";
+  if (value.includes("ios") || value.includes("android") || value.includes("mobile")) return "mobile";
+  if (value.includes("pc") || value.includes("windows")) return "pc";
+  return "generic";
+}
+
+function PlatformGlyph({ kind, color }: { kind: PlatformKind; color: string }) {
+  const props = { width: 26, height: 26, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  switch (kind) {
+    case "playstation":
+      return (
+        <svg {...props}>
+          <path d="M9 4v15l-3-1.2V6.5L9 4z" fill={color} stroke="none" />
+          <path d="M9 9.5c2 .4 5.5 1.4 5.5 3.5 0 1.4-1.3 2-2.5 1.6" />
+          <path d="M5.5 17.5l13 2.2-3.5 1.3-9.5-1.6v-1.9z" fill={color} stroke="none" opacity="0.85" />
+        </svg>
+      );
+    case "xbox":
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M7 5.5c2 1 4 3 5 5 1-2 3-4 5-5" />
+          <path d="M5.5 8c1.5 2 3.5 5 4.5 9" />
+          <path d="M18.5 8c-1.5 2-3.5 5-4.5 9" />
+        </svg>
+      );
+    case "nintendo":
+      return (
+        <svg {...props}>
+          <rect x="3.5" y="3.5" width="7" height="17" rx="2.5" />
+          <rect x="13.5" y="3.5" width="7" height="17" rx="2.5" />
+          <circle cx="7" cy="8.5" r="1.1" fill={color} stroke="none" />
+          <circle cx="17" cy="15.5" r="1.4" fill={color} stroke="none" />
+        </svg>
+      );
+    case "pc":
+      return (
+        <svg {...props}>
+          <rect x="2.5" y="4" width="19" height="12" rx="2" />
+          <path d="M8 20h8M12 16v4" />
+          <path d="M5.5 8h6M5.5 11h4" opacity="0.7" />
+        </svg>
+      );
+    case "mac":
+      return (
+        <svg {...props}>
+          <path d="M16.5 13c0-2.2 1.8-3.3 1.9-3.4-1-1.5-2.6-1.7-3.2-1.7-1.4-.1-2.6.8-3.3.8-.7 0-1.7-.8-2.9-.7-1.5 0-2.9.9-3.6 2.2-1.6 2.7-.4 6.7 1.1 8.9.7 1.1 1.6 2.3 2.8 2.2 1.1 0 1.5-.7 2.9-.7 1.4 0 1.7.7 2.9.7 1.2 0 2-1.1 2.7-2.2.6-.9 1-1.7 1.3-2.6-1.5-.6-2.6-2-2.6-3.5z" fill={color} stroke="none" />
+          <path d="M14 5.5c.6-.7 1-1.7.9-2.7-.9 0-2 .6-2.6 1.3-.5.6-1 1.6-.9 2.6 1 .1 2-.5 2.6-1.2z" fill={color} stroke="none" />
+        </svg>
+      );
+    case "linux":
+      return (
+        <svg {...props}>
+          <path d="M12 3c-2.2 0-3.5 2-3.5 4.5 0 1.5.7 2.5.7 4 0 1.6-2.2 3-2.7 5-.4 1.6.5 3 2 3.5 1 .3 2 0 2.5-.5.4.6 1.2 1 2 1s1.6-.4 2-1c.5.5 1.5.8 2.5.5 1.5-.5 2.4-1.9 2-3.5-.5-2-2.7-3.4-2.7-5 0-1.5.7-2.5.7-4C15.5 5 14.2 3 12 3z" />
+          <circle cx="10.5" cy="8" r="0.6" fill={color} stroke="none" />
+          <circle cx="13.5" cy="8" r="0.6" fill={color} stroke="none" />
+          <path d="M10.5 10.5c.5.5 2.5.5 3 0" />
+        </svg>
+      );
+    case "mobile":
+      return (
+        <svg {...props}>
+          <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+          <path d="M10 5.5h4" opacity="0.6" />
+          <circle cx="12" cy="18" r="0.8" fill={color} stroke="none" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...props}>
+          <path d="M7 8h10a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-1.5l-1.5-2h-4l-1.5 2H7a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3z" />
+          <circle cx="9" cy="12" r="0.9" fill={color} stroke="none" />
+          <circle cx="15" cy="12" r="0.9" fill={color} stroke="none" />
+        </svg>
+      );
+  }
 }
 
 function buildPlatforms(games: EnhancedGame[]): Platform[] {
@@ -93,7 +168,7 @@ function buildPlatforms(games: EnhancedGame[]): Platform[] {
       slug: slugify(name),
       name,
       count,
-      icon: platformIcon(name)
+      kind: platformKind(name)
     }));
 }
 
@@ -1401,7 +1476,7 @@ function PlatformSection({ platforms }: { platforms: Platform[] }) {
     >
       <div className="mx-auto max-w-[1400px]">
         <SectionHeader eyebrow="Por plataforma" title="Encuentra tu ecosistema" />
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
           {platforms.map((platform, index) => (
             <PlatformCard delay={index * 0.08} key={platform.slug} platform={platform} />
           ))}
@@ -1414,66 +1489,103 @@ function PlatformSection({ platforms }: { platforms: Platform[] }) {
 function PlatformCard({ delay, platform }: { delay: number; platform: Platform }) {
   const theme = useTheme();
   const [hover, setHover] = useState(false);
-  const colors = [theme.accent, theme.accent2, theme.scoreHigh.fg, theme.scoreMid.fg, theme.accent];
-  const color = colors[Math.abs(platform.slug.charCodeAt(0)) % colors.length];
+  const colors = [theme.accent, theme.accent2, theme.scoreHigh.fg, theme.scoreMid.fg];
+  const color = colors[Math.abs(platform.slug.charCodeAt(0) + platform.slug.length) % colors.length];
 
   return (
     <Link
-      className="group relative block overflow-hidden rounded-2xl p-6"
+      className="group relative block overflow-hidden rounded-2xl"
       href={`/platforms/${platform.slug}`}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        background: theme.cardBg,
+        background: `linear-gradient(155deg, ${color}14 0%, ${theme.cardBg} 55%)`,
         border: `1px solid ${hover ? color : theme.border}`,
         animation: `home-fade-in-up .6s cubic-bezier(.2,.7,.3,1) ${delay}s both`,
-        transition: "border-color .25s, transform .25s",
-        transform: hover ? "translateY(-4px)" : "translateY(0)",
-        boxShadow: hover ? `0 20px 40px -10px ${color}55` : "none"
+        transition: "border-color .25s, transform .25s, box-shadow .25s",
+        transform: hover ? "translateY(-6px)" : "translateY(0)",
+        boxShadow: hover ? `0 24px 50px -16px ${color}66, 0 0 0 1px ${color}22 inset` : "0 1px 0 rgba(255,255,255,0.03) inset"
       }}
     >
       <div
-        className="absolute -right-12 -top-12 h-40 w-40 rounded-full"
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.07]"
         style={{
-          background: color,
-          opacity: hover ? 0.3 : 0.15,
-          filter: "blur(40px)",
-          transition: "opacity .3s, transform .3s",
-          transform: hover ? "scale(1.2)" : "scale(1)"
+          backgroundImage: `linear-gradient(${theme.fg} 1px, transparent 1px), linear-gradient(90deg, ${theme.fg} 1px, transparent 1px)`,
+          backgroundSize: "22px 22px",
+          maskImage: "radial-gradient(circle at 90% 0%, black 0%, transparent 65%)",
+          WebkitMaskImage: "radial-gradient(circle at 90% 0%, black 0%, transparent 65%)"
         }}
       />
-      <div className="relative">
-        <div className="mb-4 flex items-center justify-between">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full"
+        style={{
+          background: color,
+          opacity: hover ? 0.35 : 0.18,
+          filter: "blur(48px)",
+          transition: "opacity .3s, transform .4s",
+          transform: hover ? "scale(1.25)" : "scale(1)"
+        }}
+      />
+      <div className="relative p-6">
+        <div className="mb-5 flex items-start justify-between">
           <div
-            className="grid h-12 w-12 place-items-center rounded-xl text-2xl font-black"
+            className="grid h-14 w-14 place-items-center rounded-2xl"
             style={{
-              background: `${color}22`,
-              color,
-              border: `1px solid ${color}44`,
-              transition: "transform .3s",
-              transform: hover ? "rotate(-12deg) scale(1.1)" : "rotate(0) scale(1)",
-              fontFamily: theme.fontMono
+              background: `linear-gradient(140deg, ${color}33 0%, ${color}10 100%)`,
+              border: `1px solid ${color}55`,
+              boxShadow: hover ? `0 10px 24px -10px ${color}aa` : "none",
+              transition: "transform .35s cubic-bezier(.2,.7,.3,1), box-shadow .3s",
+              transform: hover ? "rotate(-8deg) scale(1.08)" : "rotate(0) scale(1)"
             }}
           >
-            {platform.icon}
+            <PlatformGlyph color={color} kind={platform.kind} />
           </div>
           <span
-            className="rounded-md px-2 py-1 text-xs tabular-nums font-black"
-            style={{ background: theme.chipBg, color: theme.muted, fontFamily: theme.fontMono }}
+            className="rounded-full px-2.5 py-1 text-[11px] font-black tracking-wide tabular-nums"
+            style={{
+              background: hover ? `${color}1f` : theme.chipBg,
+              color: hover ? color : theme.muted,
+              border: `1px solid ${hover ? color + "44" : "transparent"}`,
+              fontFamily: theme.fontMono,
+              transition: "background .2s, color .2s, border-color .2s"
+            }}
           >
-            {formatCompactNumber(platform.count)} juegos
+            {formatCompactNumber(platform.count)} JUEGOS
           </span>
         </div>
-        <div className="text-[20px] font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+        <div
+          className="text-[22px] font-black leading-tight"
+          style={{ color: theme.fg, fontFamily: theme.fontDisplay, letterSpacing: "-0.01em" }}
+        >
           {platform.name}
         </div>
-        <div className="mt-1.5 text-sm" style={{ color: theme.muted }}>
-          Explora juegos, rankings y próximos.
+        <div className="mt-2 text-[13px] leading-relaxed" style={{ color: theme.muted }}>
+          Rankings, lanzamientos y los más jugados.
         </div>
-        <div className="mt-4 flex items-center gap-1 text-sm font-bold" style={{ color: hover ? color : theme.muted, transition: "color .2s" }}>
-          Explorar{" "}
-          <span style={{ display: "inline-block", transform: hover ? "translateX(4px)" : "translateX(0)", transition: "transform .2s" }}>
-            ?
+        <div
+          className="mt-5 flex items-center justify-between border-t pt-4 text-xs font-black uppercase tracking-[0.14em]"
+          style={{
+            borderColor: hover ? `${color}33` : theme.border,
+            color: hover ? color : theme.muted,
+            transition: "color .2s, border-color .2s"
+          }}
+        >
+          <span>Explorar</span>
+          <span
+            className="grid h-7 w-7 place-items-center rounded-full"
+            style={{
+              background: hover ? color : "transparent",
+              color: hover ? theme.cardBg : color,
+              border: `1px solid ${color}`,
+              transition: "background .2s, color .2s, transform .25s",
+              transform: hover ? "translateX(4px)" : "translateX(0)"
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
           </span>
         </div>
       </div>

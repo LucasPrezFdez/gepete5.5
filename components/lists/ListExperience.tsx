@@ -62,17 +62,25 @@ export function ListExperience({ slug, initialList = null }: Props) {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         cache: "no-store"
       });
+      if (response.status === 404) {
+        if (!initialList) {
+          setError("Lista no encontrada.");
+        }
+        return;
+      }
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error ?? "No se pudo cargar la lista.");
       setList(payload.list);
       setPermissions(payload.permissions ?? DEFAULT_PERMISSIONS);
       setCollaborators(payload.collaborators ?? []);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "No se pudo cargar la lista.");
+      if (!initialList) {
+        setError(loadError instanceof Error ? loadError.message : "No se pudo cargar la lista.");
+      }
     } finally {
       setLoading(false);
     }
-  }, [slug]);
+  }, [slug, initialList]);
 
   useEffect(() => {
     let mounted = true;

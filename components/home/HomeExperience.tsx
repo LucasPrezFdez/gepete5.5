@@ -1205,7 +1205,7 @@ function TiltCard({ game, priority = false }: { game: EnhancedGame; priority?: b
           <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-white opacity-90">
             <span>{game.year > 0 ? game.year : "TBA"}</span>
             <span style={{ opacity: 0.5 }}>·</span>
-            <span className="truncate">{game.platforms[0]}</span>
+            <span className="truncate">{game.developer || game.publisher || game.platforms[0]}</span>
           </div>
         </div>
       </div>
@@ -1556,7 +1556,7 @@ function CommunityListCard({
           className="absolute left-3 top-3 z-10 rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-wider"
           style={{ background: "rgba(0,0,0,.6)", color: "#fff", backdropFilter: "blur(8px)", fontFamily: theme.fontMono }}
         >
-          {list.games.length} juegos
+          {list.query?.pageSize ?? list.games.length} juegos
         </div>
       </div>
       <div className="p-5">

@@ -306,6 +306,96 @@ export async function searchIgdbGames(query: string, page = 1, pageSize = IGDB_P
   return listIgdbGames({ query, page, pageSize });
 }
 
+type IgdbGenre = { id?: number; name?: string };
+
+let cachedGenres: IgdbGenre[] | null = null;
+
+async function fetchIgdbGenres(): Promise<IgdbGenre[]> {
+  if (cachedGenres) return cachedGenres;
+  const data = await fetchIgdb<IgdbGenre[]>("genres", "fields id,name; limit 100;");
+  cachedGenres = data ?? [];
+  return cachedGenres;
+}
+
+async function resolveIgdbGenreId(name: string): Promise<number | null> {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return null;
+  const genres = await fetchIgdbGenres();
+  const direct = genres.find((genre) => (genre.name ?? "").trim().toLowerCase() === normalized);
+  if (direct?.id) return direct.id;
+  const partial = genres.find((genre) => (genre.name ?? "").trim().toLowerCase().includes(normalized));
+  return partial?.id ?? null;
+}
+
+export type IgdbCuratedListQuery = {
+  genreName?: string;
+  upcoming?: boolean;
+  year?: number;
+  limit?: number;
+};
+
+export async function fetchIgdbGamesForCuratedList({
+  genreName,
+  upcoming,
+  year,
+  limit = 100
+}: IgdbCuratedListQuery): Promise<IgdbGame[]> {
+  const safeLimit = Math.max(1, Math.min(500, Math.floor(limit)));
+  const today = getTodayUnixTimestamp();
+  const whereConditions = ["game_type = 0"];
+
+  if (genreName) {
+    const genreId = await resolveIgdbGenreId(genreName);
+    if (!genreId) return [];
+    whereConditions.push(`genres = (${genreId})`);
+  }
+
+  if (upcoming) {
+    whereConditions.push(`first_release_date > ${today}`);
+  } else {
+    whereConditions.push(`first_release_date != null`);
+  }
+
+  if (typeof year === "number" && Number.isFinite(year)) {
+    const yearStart = getUnixTimestamp(new Date(Date.UTC(year, 0, 1)));
+    const yearEnd = getUnixTimestamp(new Date(Date.UTC(year + 1, 0, 1)));
+    whereConditions.push(`first_release_date >= ${yearStart}`);
+    whereConditions.push(`first_release_date < ${yearEnd}`);
+  }
+
+  const sortClause = upcoming
+    ? "sort first_release_date asc;"
+    : "sort total_rating_count desc;";
+
+  const collected: IgdbGame[] = [];
+  const seen = new Set<number>();
+  const pageSize = IGDB_MAX_PAGE_SIZE;
+
+  for (let offset = 0; collected.length < safeLimit && offset < safeLimit * 4; offset += pageSize) {
+    const body = [
+      "fields id,name,slug,summary,first_release_date,cover.url,platforms.name,genres.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,rating,total_rating,rating_count,total_rating_count,aggregated_rating,game_type.type;",
+      `where ${whereConditions.join(" & ")};`,
+      sortClause,
+      `limit ${pageSize};`,
+      `offset ${offset};`
+    ].join("\n");
+
+    const batch = await fetchIgdb<IgdbGame[]>("games", body);
+    if (!batch?.length) break;
+
+    for (const game of batch) {
+      if (typeof game.id !== "number" || seen.has(game.id)) continue;
+      seen.add(game.id);
+      collected.push(game);
+      if (collected.length >= safeLimit) break;
+    }
+
+    if (batch.length < pageSize) break;
+  }
+
+  return collected;
+}
+
 export async function getIgdbGameById(idOrSlug: string) {
   const normalized = idOrSlug.trim();
   const numericId = Number(normalized);

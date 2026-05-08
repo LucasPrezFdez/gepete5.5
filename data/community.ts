@@ -3,13 +3,25 @@ export type CommunityListGame = string | {
   coverUrl?: string | null;
 };
 
+export type CommunityListQuery = {
+  genre?: string;
+  status?: "released" | "upcoming";
+  year?: number;
+  sort?: "popular" | "score" | "recent" | "upcoming" | "reviewed";
+  scoreMin?: number;
+  pageSize?: number;
+};
+
 export type CommunityListSeed = {
   slug: string;
   title: string;
   description: string;
   likes: number;
   games: CommunityListGame[];
+  query?: CommunityListQuery;
 };
+
+export const COMMUNITY_LIST_MAX_GAMES = 100;
 
 export const communityLists: CommunityListSeed[] = [
   {
@@ -17,6 +29,11 @@ export const communityLists: CommunityListSeed[] = [
     title: "Mejores RPG por turnos",
     description: "Combate táctico, decisiones y progresión profunda.",
     likes: 2214,
+    query: {
+      genre: "Role-playing (RPG)",
+      sort: "popular",
+      pageSize: COMMUNITY_LIST_MAX_GAMES
+    },
     games: [
       {
         title: "Baldur's Gate 3",
@@ -37,6 +54,11 @@ export const communityLists: CommunityListSeed[] = [
     title: "Mis mejores juegos de terror",
     description: "Terror psicológico, survival horror y atmósferas densas.",
     likes: 1840,
+    query: {
+      genre: "Horror",
+      sort: "popular",
+      pageSize: COMMUNITY_LIST_MAX_GAMES
+    },
     games: [
       {
         title: "Alan Wake II",
@@ -57,6 +79,12 @@ export const communityLists: CommunityListSeed[] = [
     title: "Pendientes para 2026",
     description: "Lanzamientos de 2026 que tengo en el radar.",
     likes: 1290,
+    query: {
+      status: "upcoming",
+      year: 2026,
+      sort: "upcoming",
+      pageSize: COMMUNITY_LIST_MAX_GAMES
+    },
     games: [
       {
         title: "Hollow Knight: Silksong",

@@ -1906,7 +1906,7 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
             </div>
 
             <p className="mt-6 text-xs" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
-              Sin tarjeta · Sin spam · Cancela cuando quieras
+              Registro gratuito · Catálogo actualizado · Comunidad activa
             </p>
           </div>
         </div>

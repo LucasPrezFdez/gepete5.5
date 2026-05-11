@@ -12,6 +12,7 @@ import {
   useRef,
   useState
 } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import type { Game } from "@/data/games";
 import { communityLists as fallbackCommunityLists, type CommunityListGame, type CommunityListSeed } from "@/data/community";
@@ -488,12 +489,18 @@ function Hero({
               transition: "opacity .5s"
             }}
           >
-            <img
-              alt=""
-              className="h-full w-full object-cover"
-              src={featuredGame.coverUrl}
-              style={{ filter: "blur(2px) saturate(1.2)", opacity: 0.35 }}
-            />
+            {featuredGame.coverUrl ? (
+              <Image
+                alt=""
+                aria-hidden="true"
+                src={featuredGame.coverUrl}
+                fill
+                sizes="100vw"
+                priority
+                className="object-cover"
+                style={{ filter: "blur(2px) saturate(1.2)", opacity: 0.35 }}
+              />
+            ) : null}
             <div className="absolute inset-0" style={{ background: theme.heroGradient }} />
           </div>
 
@@ -763,7 +770,9 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
           boxShadow: `0 40px 80px -20px ${game.accent}77, 0 0 0 1px ${theme.border}`
         }}
       >
-        <img alt={game.title} className="absolute inset-0 h-full w-full object-cover" src={game.coverUrl} />
+        {game.coverUrl ? (
+          <Image alt={game.title} fill sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 90vw" priority className="object-cover" src={game.coverUrl} />
+        ) : null}
         <Link
           aria-label={`Ir al juego ${game.title}`}
           className="absolute inset-0"
@@ -927,7 +936,11 @@ function BigSearch({
               className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/5"
               href={`/games/${game.slug}`}
             >
-              <img alt="" className="h-12 w-10 rounded-lg object-cover" src={game.coverUrl} />
+              {game.coverUrl ? (
+                <Image alt="" aria-hidden="true" src={game.coverUrl} width={40} height={48} className="h-12 w-10 rounded-lg object-cover" />
+              ) : (
+                <span aria-hidden="true" className="h-12 w-10 rounded-lg bg-white/5" />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[15px] font-bold" style={{ color: theme.fg }}>
                   {game.title}
@@ -1234,16 +1247,20 @@ function TiltCard({ game, priority = false }: { game: EnhancedGame; priority?: b
           boxShadow: hover ? `0 30px 60px -20px ${game.accent}66, 0 0 0 1px ${game.accent}55` : theme.cardShadow
         }}
       >
-        <img
-          alt={game.title}
-          className="absolute inset-0 h-full w-full object-cover"
-          loading={priority ? "eager" : "lazy"}
-          src={game.coverUrl}
-          style={{
-            transform: `translateZ(20px) scale(${hover ? 1.08 : 1})`,
-            transition: "transform .4s cubic-bezier(.2,.7,.3,1)"
-          }}
-        />
+        {game.coverUrl ? (
+          <Image
+            alt={game.title}
+            fill
+            sizes="(min-width: 1024px) 18vw, (min-width: 640px) 30vw, 45vw"
+            priority={priority}
+            className="object-cover"
+            src={game.coverUrl}
+            style={{
+              transform: `translateZ(20px) scale(${hover ? 1.08 : 1})`,
+              transition: "transform .4s cubic-bezier(.2,.7,.3,1)"
+            }}
+          />
+        ) : null}
         <div
           className="absolute inset-0"
           style={{
@@ -1435,7 +1452,9 @@ function RankingRow({
           transform: hover ? "rotate(-3deg) scale(1.05)" : "rotate(0) scale(1)"
         }}
       >
-        <img alt={game.title} className="h-full w-full object-cover" src={game.coverUrl} />
+        {game.coverUrl ? (
+          <Image alt={game.title} src={game.coverUrl} width={56} height={76} className="h-full w-full object-cover" />
+        ) : null}
       </div>
       <div className="min-w-0">
         <div className="truncate text-[18px] font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
@@ -1651,7 +1670,7 @@ function CommunityListCard({
             }}
           >
             {game.coverUrl ? (
-              <img alt={game.title} className="h-full w-full object-cover" src={game.coverUrl} />
+              <Image alt={game.title} src={game.coverUrl} width={110} height={150} className="h-full w-full object-cover" />
             ) : (
               <div
                 aria-label={`Portada no disponible para ${game.title}`}
@@ -1741,7 +1760,9 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
                   boxShadow: "0 12px 32px rgba(0,0,0,.4)"
                 }}
               >
-                <img alt="" className="h-full w-full object-cover" src={game.coverUrl} />
+                {game.coverUrl ? (
+                  <Image alt="" aria-hidden="true" src={game.coverUrl} width={80} height={110} className="h-full w-full object-cover" />
+                ) : null}
               </div>
             ))}
           </div>
@@ -1835,7 +1856,9 @@ function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void 
         }}
       >
         <div className="relative h-48 overflow-hidden">
-          <img alt="" className="h-full w-full object-cover" src={game.coverUrl} style={{ filter: "blur(2px)" }} />
+          {game.coverUrl ? (
+            <Image alt="" aria-hidden="true" src={game.coverUrl} fill sizes="100vw" className="object-cover" style={{ filter: "blur(2px)" }} />
+          ) : null}
           <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, transparent, ${theme.cardBg})` }} />
           <button
             className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full"
@@ -1847,12 +1870,16 @@ function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void 
           </button>
         </div>
         <div className="relative grid gap-6 p-6 sm:-mt-24 sm:grid-cols-[140px,1fr]">
-          <img
-            alt={game.title}
-            className="hidden h-[190px] w-[140px] rounded-xl object-cover sm:block"
-            src={game.coverUrl}
-            style={{ boxShadow: `0 20px 40px ${game.accent}77` }}
-          />
+          {game.coverUrl ? (
+            <Image
+              alt={game.title}
+              src={game.coverUrl}
+              width={140}
+              height={190}
+              className="hidden h-[190px] w-[140px] rounded-xl object-cover sm:block"
+              style={{ boxShadow: `0 20px 40px ${game.accent}77` }}
+            />
+          ) : null}
           <div className="sm:pt-24">
             <div className="mb-1 text-[11px] font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
               {game.developer} · {game.year || "TBA"}

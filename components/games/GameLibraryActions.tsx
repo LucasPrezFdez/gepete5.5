@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AuthSession } from "@/services/auth-types";
 import type { Game, UserGameStatus } from "@/data/games";
 import { Button } from "@/components/ui/Button";
-import { createBrowserAuthClient } from "@/services/auth-browser";
+import { SignInPrompt } from "@/components/auth/SignInPrompt";
+import { useAuthSession } from "@/hooks/useAuthSession";
 
 const actions: Array<{ status: UserGameStatus; label: string }> = [
   { status: "want_to_play", label: "Pendiente" },
@@ -14,15 +14,15 @@ const actions: Array<{ status: UserGameStatus; label: string }> = [
 ];
 
 export function GameLibraryActions({ game }: { game: Game }) {
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const { accessToken, isAuthenticated, isLoading } = useAuthSession();
   const [active, setActive] = useState<Set<UserGameStatus>>(new Set());
   const [loadingStatus, setLoadingStatus] = useState<UserGameStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadStatuses = useCallback(async (accessToken: string) => {
+  const loadStatuses = useCallback(async (token: string) => {
     try {
       const response = await fetch(`/api/me/library?gameSlug=${encodeURIComponent(game.slug)}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${token}` },
         cache: "no-store"
       });
       const payload = await response.json().catch(() => null);
@@ -35,42 +35,16 @@ export function GameLibraryActions({ game }: { game: Game }) {
   }, [game.slug]);
 
   useEffect(() => {
-    let mounted = true;
-    let authClient: ReturnType<typeof createBrowserAuthClient>;
-    try {
-      authClient = createBrowserAuthClient();
-    } catch {
-      return () => {
-        mounted = false;
-      };
+    if (accessToken) {
+      void loadStatuses(accessToken);
+    } else {
+      setActive(new Set());
     }
-
-    authClient.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      if (data.session?.access_token) void loadStatuses(data.session.access_token);
-    });
-
-    const {
-      data: { subscription }
-    } = authClient.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      if (nextSession?.access_token) void loadStatuses(nextSession.access_token);
-      else setActive(new Set());
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [loadStatuses]);
+  }, [accessToken, loadStatuses]);
 
   async function toggle(status: UserGameStatus) {
     setError(null);
-    if (!session?.access_token) {
-      setError("Inicia sesión para guardar juegos en tu biblioteca.");
-      return;
-    }
+    if (!accessToken) return;
 
     const enabled = !active.has(status);
     setLoadingStatus(status);
@@ -79,7 +53,7 @@ export function GameLibraryActions({ game }: { game: Game }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`
+          Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({ gameSlug: game.slug, status, enabled, game })
       });
@@ -103,6 +77,23 @@ export function GameLibraryActions({ game }: { game: Game }) {
     [active]
   );
 
+  if (isLoading) {
+    return (
+      <div className="h-11 w-48 animate-pulse rounded-xl bg-white/10" aria-hidden="true" />
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <SignInPrompt
+        variant="inline"
+        title="Inicia sesión para guardar este juego en tu biblioteca"
+        description="Marca como pendiente, jugando, completado o favorito."
+        redirectTo={`/games/${game.slug}`}
+      />
+    );
+  }
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-3">
@@ -124,5 +115,3 @@ export function GameLibraryActions({ game }: { game: Game }) {
     </div>
   );
 }
-
-

@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import type { Review } from "@/data/games";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
+import { buildAuthRedirectUrl, useAuthSession } from "@/hooks/useAuthSession";
 
 export type ReviewCardProps = Review | {
   user: string;
@@ -17,19 +18,21 @@ export type ReviewCardProps = Review | {
 
 export function ReviewCard(props: ReviewCardProps) {
   const review = normalizeReview(props);
+  const { accessToken, isAuthenticated, isLoading } = useAuthSession();
   const [helpfulCount, setHelpfulCount] = useState(review.helpfulCount);
   const [voted, setVoted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const canVote = Boolean(review.id) && isAuthenticated && !voted;
+  const redirectTo = review.gameSlug ? `/games/${review.gameSlug}` : "/";
+
   async function voteHelpful() {
-    if (!review.id) return;
+    if (!review.id || !accessToken) return;
     setError(null);
     try {
-      const token = await getAccessToken();
-      if (!token) throw new Error("Inicia sesión para votar reseñas útiles.");
       const response = await fetch(`/api/reviews/${review.id}/helpful`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${accessToken}` }
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error ?? "No se pudo registrar el voto.");
@@ -53,9 +56,35 @@ export function ReviewCard(props: ReviewCardProps) {
       <p className="mt-4 whitespace-pre-line text-sm leading-6 text-muted">{review.body}</p>
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted">
         {review.hasSpoilers && <Badge tone="danger">Spoilers</Badge>}
-        <Button type="button" size="sm" variant={voted ? "secondary" : "ghost"} onClick={voteHelpful} disabled={!review.id || voted}>
-          {helpfulCount} votos útiles
-        </Button>
+        {review.id ? (
+          isLoading ? (
+            <span className="rounded-xl border border-white/10 px-3 py-1.5">{helpfulCount} votos útiles</span>
+          ) : isAuthenticated ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={voted ? "secondary" : "ghost"}
+              onClick={voteHelpful}
+              disabled={!canVote}
+              aria-pressed={voted}
+            >
+              {helpfulCount} votos útiles
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              asChild
+              href={buildAuthRedirectUrl(redirectTo, "signin")}
+              title="Inicia sesión para votar"
+            >
+              {helpfulCount} votos útiles
+            </Button>
+          )
+        ) : (
+          <span className="rounded-xl border border-white/10 px-3 py-1.5">{helpfulCount} votos útiles</span>
+        )}
         {error && <span className="text-danger">{error}</span>}
       </div>
     </article>
@@ -72,7 +101,8 @@ function normalizeReview(props: ReviewCardProps) {
       score: props.score,
       helpfulCount: props.helpfulCount,
       hasSpoilers: props.hasSpoilers,
-      gameTitle: props.gameTitle
+      gameTitle: props.gameTitle,
+      gameSlug: props.gameSlug
     };
   }
 
@@ -84,19 +114,7 @@ function normalizeReview(props: ReviewCardProps) {
     score: props.score,
     helpfulCount: props.helpful,
     hasSpoilers: Boolean(props.hasSpoilers),
-    gameTitle: undefined
+    gameTitle: undefined,
+    gameSlug: undefined as string | undefined
   };
 }
-
-async function getAccessToken() {
-  const { createBrowserAuthClient } = await import("@/services/auth-browser");
-  try {
-    const authClient = createBrowserAuthClient();
-    const { data } = await authClient.auth.getSession();
-    return data.session?.access_token ?? null;
-  } catch {
-    return null;
-  }
-}
-
-

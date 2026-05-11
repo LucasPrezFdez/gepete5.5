@@ -9,7 +9,16 @@ type Params = Promise<{ slug: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  return { title: `Juegos de ${slug.replaceAll("-", " ")}` };
+  const label = slug.replaceAll("-", " ");
+  const title = `Juegos de ${label}`;
+  const description = `Los mejores videojuegos de género ${label}, valoraciones y reseñas en GameIndex.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/genres/${encodeURIComponent(slug)}` },
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description }
+  };
 }
 
 export default async function GenrePage({ params }: { params: Params }) {

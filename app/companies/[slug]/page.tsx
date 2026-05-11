@@ -11,7 +11,16 @@ type Params = Promise<{ slug: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  return { title: slug.replaceAll("-", " ") };
+  const name = slug.replaceAll("-", " ");
+  const title = name.replace(/\b\w/g, (char) => char.toUpperCase());
+  const description = `Catálogo de videojuegos de ${title} agregados desde IGDB y RAWG en GameIndex.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/companies/${encodeURIComponent(slug)}` },
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description }
+  };
 }
 
 export default async function CompanyPage({ params }: { params: Params }) {

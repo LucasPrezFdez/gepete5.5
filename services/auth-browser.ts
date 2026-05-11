@@ -2,6 +2,8 @@
 
 const STORAGE_KEY = "gameindex.auth.session";
 const AUTH_EVENT = "gameindex-auth-change";
+const SESSION_COOKIE = "gameindex-auth-token";
+const SESSION_COOKIE_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 type AuthCallback = (event: "SIGNED_IN" | "SIGNED_OUT" | "TOKEN_REFRESHED", session: AuthSession | null) => void;
 
@@ -76,10 +78,13 @@ function readSession(): AuthSession | null {
 
 function writeSession(session: AuthSession) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(session.access_token)}; Path=/; Max-Age=${SESSION_COOKIE_TTL_SECONDS}; SameSite=Lax${secure}`;
 }
 
 function clearSession() {
   window.localStorage.removeItem(STORAGE_KEY);
+  document.cookie = `${SESSION_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
 function emitAuthChange() {

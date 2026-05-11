@@ -5,6 +5,8 @@ export type CommunityListGame = string | {
 
 export type CommunityListQuery = {
   genre?: string;
+  theme?: string;
+  themes?: string[];
   status?: "released" | "upcoming";
   year?: number;
   sort?: "popular" | "score" | "recent" | "upcoming" | "reviewed";
@@ -55,7 +57,7 @@ export const communityLists: CommunityListSeed[] = [
     description: "Terror psicológico, survival horror y atmósferas densas.",
     likes: 1840,
     query: {
-      genre: "Horror",
+      themes: ["Horror", "Survival"],
       sort: "popular",
       pageSize: COMMUNITY_LIST_MAX_GAMES
     },

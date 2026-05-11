@@ -1,12 +1,11 @@
-﻿"use client";
+"use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { AuthSession } from "@/services/auth-types";
 import type { Game } from "@/data/games";
-import { createBrowserAuthClient } from "@/services/auth-browser";
 import { Button } from "@/components/ui/Button";
+import { SignInPrompt } from "@/components/auth/SignInPrompt";
+import { useAuthSession } from "@/hooks/useAuthSession";
 
 type CommunityRatingFormProps = {
   game: Game;
@@ -26,45 +25,12 @@ export function CommunityRatingForm({
   onSaved
 }: CommunityRatingFormProps) {
   const router = useRouter();
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const { accessToken, isAuthenticated, isLoading: authLoading } = useAuthSession();
   const [score, setScore] = useState(initialScore ?? 8);
   const [comment, setComment] = useState(initialComment ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    let authClient: ReturnType<typeof createBrowserAuthClient>;
-
-    try {
-      authClient = createBrowserAuthClient();
-    } catch {
-      setAuthLoading(false);
-      return () => {
-        mounted = false;
-      };
-    }
-
-    authClient.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      setAuthLoading(false);
-    });
-
-    const {
-      data: { subscription }
-    } = authClient.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setAuthLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
 
   useEffect(() => {
     if (initialScore) {
@@ -85,7 +51,7 @@ export function CommunityRatingForm({
 
     const cleanComment = comment.trim();
 
-    if (!session?.access_token) {
+    if (!accessToken) {
       setError("Debes iniciar sesión para guardar tu valoración.");
       return;
     }
@@ -102,7 +68,7 @@ export function CommunityRatingForm({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`
+          Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           score,
@@ -144,30 +110,21 @@ export function CommunityRatingForm({
     );
   }
 
-  if (!session) {
+  if (!isAuthenticated) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-        <h3 className="font-bold">Inicia sesión para valorar</h3>
-        <p className="mt-2 text-sm text-muted">
-          Necesitas una cuenta para publicar tu puntuación y comentario.
-        </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button asChild href={`/auth??redirect=/games/${game.slug}`}>
-            Entrar
-          </Button>
-          <Link
-            href={`/auth??mode=signup&redirect=/games/${game.slug}`}
-            className="inline-flex h-11 items-center rounded-xl px-4 text-sm font-semibold text-muted hover:bg-white/10 hover:text-foreground"
-          >
-            Crear cuenta
-          </Link>
-        </div>
-      </div>
+      <SignInPrompt
+        title="Inicia sesión para valorar"
+        description="Necesitas una cuenta para publicar tu puntuación y comentario."
+        redirectTo={`/games/${game.slug}`}
+      />
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className={compact ? "space-y-4" : "rounded-2xl border border-white/10 bg-white/5 p-5"}>
+    <form
+      onSubmit={handleSubmit}
+      className={compact ? "space-y-4" : "rounded-2xl border border-white/10 bg-white/5 p-5"}
+    >
       <div>
         <label className="block text-sm font-medium" htmlFor={`score-${game.slug}`}>
           Puntuación: <span className="font-black text-electric">{score}/10</span>
@@ -210,6 +167,3 @@ export function CommunityRatingForm({
     </form>
   );
 }
-
-
-

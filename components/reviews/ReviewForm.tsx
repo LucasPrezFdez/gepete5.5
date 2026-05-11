@@ -1,14 +1,14 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useState } from "react";
-import type { AuthSession } from "@/services/auth-types";
+import { useState } from "react";
 import type { Game } from "@/data/games";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { createBrowserAuthClient } from "@/services/auth-browser";
+import { SignInPrompt } from "@/components/auth/SignInPrompt";
+import { useAuthSession } from "@/hooks/useAuthSession";
 
 export function ReviewForm({ game, onSaved }: { game: Game; onSaved?: () => void }) {
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const { accessToken, isAuthenticated, isLoading } = useAuthSession();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [score, setScore] = useState(8);
@@ -17,36 +17,12 @@ export function ReviewForm({ game, onSaved }: { game: Game; onSaved?: () => void
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    let authClient: ReturnType<typeof createBrowserAuthClient>;
-    try {
-      authClient = createBrowserAuthClient();
-    } catch {
-      return () => {
-        mounted = false;
-      };
-    }
-
-    authClient.auth.getSession().then(({ data }) => {
-      if (mounted) setSession(data.session);
-    });
-    const {
-      data: { subscription }
-    } = authClient.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setSuccess(null);
 
-    if (!session?.access_token) {
+    if (!accessToken) {
       setError("Inicia sesión para publicar una reseña.");
       return;
     }
@@ -57,7 +33,7 @@ export function ReviewForm({ game, onSaved }: { game: Game; onSaved?: () => void
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`
+          Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({ gameSlug: game.slug, game, title, body, score, hasSpoilers })
       });
@@ -75,11 +51,21 @@ export function ReviewForm({ game, onSaved }: { game: Game; onSaved?: () => void
     }
   }
 
-  if (!session) {
+  if (isLoading) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-muted">
-        Inicia sesión para escribir una reseña larga de {game.title}.
+        Cargando sesión...
       </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <SignInPrompt
+        title="Inicia sesión para escribir una reseña"
+        description={`Necesitas una cuenta para publicar una reseña larga de ${game.title}.`}
+        redirectTo={`/games/${game.slug}/reviews`}
+      />
     );
   }
 
@@ -118,5 +104,3 @@ export function ReviewForm({ game, onSaved }: { game: Game; onSaved?: () => void
     </form>
   );
 }
-
-

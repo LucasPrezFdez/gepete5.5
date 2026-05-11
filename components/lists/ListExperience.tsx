@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Game, GameList } from "@/data/games";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
 import { createBrowserAuthClient } from "@/services/auth-browser";
+import { buildAuthRedirectUrl } from "@/hooks/useAuthSession";
 
 type Permissions = {
   isOwner: boolean;
@@ -121,6 +123,32 @@ export function ListExperience({ slug, initialList = null }: Props) {
     });
   }, [games, genre, minScore, platform, query]);
 
+  async function likeList() {
+    if (!list) return;
+    if (!accessToken) {
+      window.location.href = buildAuthRedirectUrl(`/lists/${list.slug}`, "signin");
+      return;
+    }
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/lists/${encodeURIComponent(slug)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` }
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error ?? "No se pudo registrar el me gusta.");
+      const nextLikes = Number(payload?.likesCount);
+      if (Number.isFinite(nextLikes)) {
+        setList({ ...list, likesCount: nextLikes });
+      } else {
+        setList({ ...list, likesCount: list.likesCount + 1 });
+      }
+      setMessage("¡Gracias por tu me gusta!");
+    } catch (likeError) {
+      setMessage(likeError instanceof Error ? likeError.message : "No se pudo registrar el me gusta.");
+    }
+  }
+
   async function shareList() {
     if (!list) return;
     setMessage(null);
@@ -183,7 +211,9 @@ export function ListExperience({ slug, initialList = null }: Props) {
           </div>
           <div className="flex flex-wrap items-start gap-2 md:justify-end">
             <Button type="button" onClick={shareList}>Compartir</Button>
-            <Button type="button" variant="secondary">Me gusta ({list.likesCount.toLocaleString("es-ES")})</Button>
+            <Button type="button" variant="secondary" onClick={likeList}>
+              Me gusta ({list.likesCount.toLocaleString("es-ES")})
+            </Button>
             {permissions.canEditItems && <Button type="button" variant="secondary" onClick={() => setAddOpen(true)}>Añadir juegos</Button>}
             {permissions.canManage && <Button type="button" variant="secondary" onClick={() => setSettingsOpen(true)}>Configuración</Button>}
           </div>
@@ -259,7 +289,15 @@ function ListRows({ games, canEdit, onRemove }: { games: Game[]; canEdit: boolea
       {games.map((game) => (
         <article key={game.slug} className="surface-card grid gap-4 rounded-2xl p-3 sm:grid-cols-[86px_1fr_auto] sm:items-center">
           <Link href={`/games/${game.slug}`} className="relative aspect-[3/4] w-20 overflow-hidden rounded-xl bg-white/5 sm:w-[86px]">
-            {game.coverUrl && <img src={game.coverUrl} alt={`Cover de ${game.title}`} className="h-full w-full object-cover" />}
+            {game.coverUrl && (
+              <Image
+                src={game.coverUrl}
+                alt={`Cover de ${game.title}`}
+                fill
+                sizes="86px"
+                className="object-cover"
+              />
+            )}
           </Link>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -289,8 +327,16 @@ function CoverGrid({ games, canEdit, onRemove }: { games: Game[]; canEdit: boole
       {games.map((game) => (
         <article key={game.slug} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 transition hover:-translate-y-1 hover:border-electric/45">
           <Link href={`/games/${game.slug}`} className="block overflow-hidden rounded-xl">
-            <div className="aspect-[3/4] bg-background/70">
-              {game.coverUrl && <img src={game.coverUrl} alt={game.title} className="h-full w-full object-cover transition group-hover:scale-105" />}
+            <div className="relative aspect-[3/4] bg-background/70">
+              {game.coverUrl && (
+                <Image
+                  src={game.coverUrl}
+                  alt={game.title}
+                  fill
+                  sizes="(min-width: 1024px) 16vw, (min-width: 768px) 25vw, 50vw"
+                  className="object-cover transition group-hover:scale-105"
+                />
+              )}
             </div>
           </Link>
           {canEdit && <button type="button" onClick={() => onRemove(game.slug)} className="absolute right-3 top-3 rounded-full bg-black/70 px-2 py-1 text-xs text-white backdrop-blur">Quitar</button>}
@@ -467,7 +513,11 @@ function AddGamesDialog({ accessToken, list, onClose, onSaved }: { accessToken: 
         <div className="mt-5 space-y-2">
           {results.map((game) => (
             <div key={game.slug} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-              <div className="h-16 w-12 overflow-hidden rounded-lg bg-background/60">{game.coverUrl && <img src={game.coverUrl} alt="" className="h-full w-full object-cover" />}</div>
+              <div className="relative h-16 w-12 overflow-hidden rounded-lg bg-background/60">
+                {game.coverUrl && (
+                  <Image src={game.coverUrl} alt="" fill sizes="48px" className="object-cover" />
+                )}
+              </div>
               <div className="min-w-0 flex-1"><p className="font-semibold">{game.title}</p><p className="text-sm text-muted">{game.year || "TBA"}</p></div>
               <Button type="button" size="sm" onClick={() => addGame(game)}>Añadir</Button>
             </div>

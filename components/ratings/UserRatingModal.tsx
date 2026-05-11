@@ -1,22 +1,45 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import type { Game } from "@/data/games";
 import { Button } from "@/components/ui/Button";
 import { CommunityRatingForm } from "@/components/ratings/CommunityRatingForm";
+import { buildAuthRedirectUrl, useAuthSession } from "@/hooks/useAuthSession";
 
 export function UserRatingModal({ game }: { game: Game }) {
+  const { isAuthenticated, isLoading } = useAuthSession();
   const [open, setOpen] = useState(false);
+
+  if (isLoading) {
+    return (
+      <Button type="button" disabled>
+        Valorar
+      </Button>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Button asChild href={buildAuthRedirectUrl(`/games/${game.slug}`, "signin")}>
+        Valorar
+      </Button>
+    );
+  }
 
   return (
     <>
       <Button onClick={() => setOpen(true)}>Valorar</Button>
       {open && (
-        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4">
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Valorar ${game.title}`}
+        >
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-elevated p-6 shadow-card">
             <h2 className="text-xl font-bold">Valora {game.title}</h2>
             <p className="mt-2 text-sm text-muted">
-              Selecciona una puntuación de 1 a 10 y a?ade un comentario p?blico.
+              Selecciona una puntuación de 1 a 10 y añade un comentario público.
             </p>
             <div className="mt-6">
               <CommunityRatingForm game={game} compact onSaved={() => setOpen(false)} />
@@ -32,5 +55,3 @@ export function UserRatingModal({ game }: { game: Game }) {
     </>
   );
 }
-
-

@@ -21,9 +21,32 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { slug } = await params;
   const list = await getPublicDatabaseList(slug);
   const fallback = communityLists.find((item) => item.slug === slug);
+  const title = list?.title ?? fallback?.title ?? "Lista";
+  const description =
+    list?.description ??
+    fallback?.description ??
+    `Lista colaborativa de videojuegos en GameIndex.`;
+  const canonical = `/lists/${encodeURIComponent(slug)}`;
+  const cover = list?.coverUrl ?? list?.items?.[0]?.game?.coverUrl ?? null;
+
   return {
-    title: list?.title ?? fallback?.title ?? "Lista",
-    description: list?.description ?? fallback?.description
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: canonical,
+      images: cover ? [cover] : undefined
+    },
+    twitter: {
+      card: cover ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: cover ? [cover] : undefined
+    },
+    robots: list || fallback ? { index: true, follow: true } : { index: false, follow: true }
   };
 }
 
@@ -71,6 +94,8 @@ async function resolveByQuery(query: CommunityListQuery): Promise<Game[]> {
   try {
     const igdbGames = await fetchIgdbGamesForCuratedList({
       genreName: query.genre,
+      themeName: query.theme,
+      themeNames: query.themes,
       upcoming: query.status === "upcoming",
       year: query.year,
       limit

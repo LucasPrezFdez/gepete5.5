@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Profile, ProfileStats } from "@/data/games";
@@ -7,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { createBrowserAuthClient } from "@/services/auth-browser";
+import { buildAuthRedirectUrl } from "@/hooks/useAuthSession";
 
 const PLATFORM_OPTIONS = ["PC", "PlayStation 5", "Xbox Series", "Nintendo Switch", "Mobile"];
 const GENRE_OPTIONS = ["RPG", "Acción", "Aventura", "Terror", "Indie", "Estrategia", "Metroidvania"];
@@ -125,7 +127,7 @@ export function UserProfileHeader({ profile, stats }: Props) {
   async function toggleFollow() {
     setMessage(null);
     if (!accessToken) {
-      window.location.href = "/auth";
+      window.location.href = buildAuthRedirectUrl(`/users/${currentProfile.username}`, "signin");
       return;
     }
 
@@ -170,7 +172,17 @@ export function UserProfileHeader({ profile, stats }: Props) {
       <div className="p-6 pt-0 md:p-8 md:pt-0">
         <div className="flex flex-col gap-6 md:flex-row md:items-end">
           <div className="-mt-12 grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border border-white/20 bg-gradient-to-br from-electric to-violet text-3xl font-black shadow-glow">
-            {currentProfile.avatarUrl ? <img src={currentProfile.avatarUrl} alt="" className="h-full w-full object-cover" /> : initials(currentProfile.displayName)}
+            {currentProfile.avatarUrl ? (
+              <Image
+                src={currentProfile.avatarUrl}
+                alt={`Avatar de ${currentProfile.displayName}`}
+                fill
+                sizes="112px"
+                className="object-cover"
+              />
+            ) : (
+              initials(currentProfile.displayName)
+            )}
           </div>
           <div className="flex-1">
             <p className="text-sm text-muted">@{currentProfile.username}</p>

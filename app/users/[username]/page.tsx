@@ -7,7 +7,7 @@ import { SectionHeader } from "@/components/sections/SectionHeader";
 import { UserProfileHeader } from "@/components/users/UserProfileHeader";
 import { communityLists } from "@/data/community";
 import { getExploreGames } from "@/services/games";
-import { getPublicUserProfile } from "@/services/users";
+import { getProfileRowByUsername, getPublicUserProfile } from "@/services/users";
 
 type Params = Promise<{ username: string }>;
 
@@ -15,9 +15,39 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { username } = await params;
+  let row: Awaited<ReturnType<typeof getProfileRowByUsername>> | null = null;
+  try {
+    row = await getProfileRowByUsername(username);
+  } catch {
+    row = null;
+  }
+
+  const displayName = row?.display_name ?? username;
+  const title = `${displayName} (@${username})`;
+  const description = row?.bio
+    ? row.bio
+    : `Actividad, listas, reseñas y backlog de @${username} en GameIndex.`;
+  const avatar = row?.avatar_url ?? undefined;
+  const canonical = `/users/${encodeURIComponent(username)}`;
+
   return {
-    title: `Perfil de @${username}`,
-    description: `Actividad, listas, reseñas y backlog de @${username} en GameIndex.`
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      type: "profile",
+      url: canonical,
+      images: avatar ? [avatar] : undefined
+    },
+    twitter: {
+      card: avatar ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: avatar ? [avatar] : undefined
+    },
+    robots: row ? { index: true, follow: true } : { index: false, follow: true }
   };
 }
 

@@ -12,8 +12,7 @@ import { createBrowserAuthClient } from "@/services/auth-browser";
 const navItems = [
   { href: "/games", label: "Juegos" },
   { href: "/rankings", label: "Rankings" },
-  { href: "/lists/rpg-turnos-imprescindibles", label: "Listas" },
-  { href: "/users/norapixel", label: "Comunidad" }
+  { href: "/rankings/top-250", label: "Top 250" }
 ];
 
 export function Header() {

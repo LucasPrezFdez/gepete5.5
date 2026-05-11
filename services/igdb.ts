@@ -357,6 +357,27 @@ async function resolveIgdbGenreId(name: string): Promise<number | null> {
   return partial?.id ?? null;
 }
 
+type IgdbTheme = { id?: number; name?: string };
+
+let cachedThemes: IgdbTheme[] | null = null;
+
+async function fetchIgdbThemes(): Promise<IgdbTheme[]> {
+  if (cachedThemes) return cachedThemes;
+  const data = await fetchIgdb<IgdbTheme[]>("themes", "fields id,name; limit 100;");
+  cachedThemes = data ?? [];
+  return cachedThemes;
+}
+
+async function resolveIgdbThemeId(name: string): Promise<number | null> {
+  const normalized = name.trim().toLowerCase();
+  if (!normalized) return null;
+  const themes = await fetchIgdbThemes();
+  const direct = themes.find((theme) => (theme.name ?? "").trim().toLowerCase() === normalized);
+  if (direct?.id) return direct.id;
+  const partial = themes.find((theme) => (theme.name ?? "").trim().toLowerCase().includes(normalized));
+  return partial?.id ?? null;
+}
+
 type IgdbPlatform = { id?: number; name?: string; slug?: string; abbreviation?: string; alternative_name?: string };
 
 let cachedPlatforms: IgdbPlatform[] | null = null;
@@ -395,6 +416,8 @@ export async function resolveIgdbPlatformId(value: string): Promise<number | nul
 
 export type IgdbCuratedListQuery = {
   genreName?: string;
+  themeName?: string;
+  themeNames?: string[];
   upcoming?: boolean;
   year?: number;
   limit?: number;
@@ -402,6 +425,8 @@ export type IgdbCuratedListQuery = {
 
 export async function fetchIgdbGamesForCuratedList({
   genreName,
+  themeName,
+  themeNames,
   upcoming,
   year,
   limit = 100
@@ -414,6 +439,25 @@ export async function fetchIgdbGamesForCuratedList({
     const genreId = await resolveIgdbGenreId(genreName);
     if (!genreId) return [];
     whereConditions.push(`genres = (${genreId})`);
+  }
+
+  const themeIds: number[] = [];
+  if (themeNames && themeNames.length) {
+    for (const name of themeNames) {
+      const id = await resolveIgdbThemeId(name);
+      if (!id) return [];
+      themeIds.push(id);
+    }
+  } else if (themeName) {
+    const id = await resolveIgdbThemeId(themeName);
+    if (!id) return [];
+    themeIds.push(id);
+  }
+
+  if (themeIds.length === 1) {
+    whereConditions.push(`themes = (${themeIds[0]})`);
+  } else if (themeIds.length > 1) {
+    whereConditions.push(`themes = [${themeIds.join(",")}]`);
   }
 
   if (upcoming) {

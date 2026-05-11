@@ -1,11 +1,15 @@
-﻿import { NextResponse } from "next/server";
-import type { Game } from "@/data/games";
+﻿import type { Game } from "@/data/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import { ensureProfile, getUserFromRequest, recordActivity } from "@/services/community";
 import { dedupeListsByTitle, getAvailableListSlug, listFromRow, upsertListItems } from "@/services/lists";
 import { slugify } from "@/lib/utils";
+import { jsonError, jsonOk, publicCacheHeaders } from "@/lib/api";
+import { parse, v } from "@/lib/validation";
+import { createLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
+
+const log = createLogger("api/lists");
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -22,40 +26,53 @@ export async function GET(request: Request) {
   if (username) query = query.eq("profiles.username", username);
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    log.error("list query failed", { reason: error.message });
+    return jsonError(error.message, 500);
+  }
 
-  return NextResponse.json({ lists: dedupeListsByTitle((data ?? []).filter((row: any) => row.profiles).map(listFromRow)) });
+  return jsonOk(
+    { lists: dedupeListsByTitle((data ?? []).filter((row: any) => row.profiles).map(listFromRow)) },
+    { headers: publicCacheHeaders({ sMaxAge: 30, swr: 300 }) }
+  );
 }
+
+const createListSchema = {
+  title: v.string({ min: 3, max: 120 }),
+  description: v.string({ min: 0, max: 1000, optional: true }),
+  isPublic: v.boolean({ defaultValue: true })
+};
 
 export async function POST(request: Request) {
   const auth = await getUserFromRequest(request);
-  if (!auth.user) return NextResponse.json({ error: auth.error }, { status: 401 });
+  if (!auth.user) return jsonError(auth.error ?? "No autenticado.", 401);
 
   const payload = await request.json().catch(() => null);
-  const title = String(payload?.title ?? "").trim();
-  const description = String(payload?.description ?? "").trim();
-  const isPublic = payload?.isPublic !== false;
-  const games = Array.isArray(payload?.games) ? (payload.games as Partial<Game>[]) : [];
+  const parsed = parse(createListSchema, payload);
+  if (!parsed.ok) return jsonError(parsed.error, 400);
 
-  if (title.length < 3) return NextResponse.json({ error: "El título de la lista es demasiado corto." }, { status: 400 });
+  const games = Array.isArray((payload as any)?.games) ? ((payload as any).games as Partial<Game>[]) : [];
 
   const serviceClient = createServiceDatabaseClient();
   await ensureProfile(serviceClient, auth.user);
-  const slug = await getAvailableListSlug(serviceClient, slugify(title));
+  const slug = await getAvailableListSlug(serviceClient, slugify(parsed.value.title));
 
   const { data: list, error } = await serviceClient
     .from("lists")
     .insert({
       user_id: auth.user.id,
       slug,
-      title,
-      description: description || null,
-      is_public: isPublic
+      title: parsed.value.title,
+      description: parsed.value.description || null,
+      is_public: parsed.value.isPublic
     })
     .select("id, slug, title")
     .single();
 
-  if (error || !list) return NextResponse.json({ error: error?.message ?? "No se pudo crear la lista." }, { status: 500 });
+  if (error || !list) {
+    log.error("list insert failed", { reason: error?.message });
+    return jsonError(error?.message ?? "No se pudo crear la lista.", 500);
+  }
 
   await upsertListItems(serviceClient, list.id, games);
   await recordActivity(serviceClient, {
@@ -65,6 +82,6 @@ export async function POST(request: Request) {
     message: `creó la lista ${list.title}`
   }).catch(() => null);
 
-  return NextResponse.json({ ok: true, slug: list.slug });
+  return jsonOk({ ok: true, slug: list.slug });
 }
 

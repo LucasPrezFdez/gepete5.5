@@ -36,7 +36,15 @@ function parsePage(value: string | undefined) {
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
   const name = await resolvePlatformName(slug);
-  return { title: `Juegos para ${name}` };
+  const title = `Juegos para ${name}`;
+  const description = `Catálogo completo y los mejores videojuegos para ${name} en GameIndex.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/platforms/${encodeURIComponent(slug)}` },
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description }
+  };
 }
 
 export default async function PlatformPage({

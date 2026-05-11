@@ -473,6 +473,7 @@ async function hydrateRows(queryFn: ReturnType<typeof neon>, table: string, rows
   if (table === "activity_events") {
     if (needs("games")) await hydrateGames(queryFn, hydrated, "game_id", "games");
     if (needs("lists")) await hydrateActivityLists(queryFn, hydrated);
+    if (needs("profiles")) await hydrateProfiles(queryFn, hydrated, "user_id", "profiles");
   }
 
   stripJsonNulls(hydrated);

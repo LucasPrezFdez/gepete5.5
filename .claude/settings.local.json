@@ -97,7 +97,11 @@
       "Bash(curl -s \"http://localhost:3220/lists/mejores-juegos-terror\" -o /tmp/page.html)",
       "Bash(curl -s http://localhost:3000/api/igdb/health)",
       "Bash(curl -s \"http://localhost:3000/lists/mejores-juegos-terror\" -o /tmp/list.html)",
-      "Bash(curl -s \"http://localhost:3000/lists/mejores-juegos-terror?_=$\\(date +%s\\)\" -o /tmp/list2.html -w \"HTTP %{http_code}\\\\n\")"
+      "Bash(curl -s \"http://localhost:3000/lists/mejores-juegos-terror?_=$\\(date +%s\\)\" -o /tmp/list2.html -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(curl -sN -X POST http://localhost:3000/api/chat -H \"Content-Type: application/json\" --data \"{\\\\\"messages\\\\\":[{\\\\\"role\\\\\":\\\\\"user\\\\\",\\\\\"content\\\\\":\\\\\"que juegos salen esta semana?\\\\\"}]}\" --max-time 90)",
+      "Bash(tee /tmp/last.txt)",
+      "Bash(cat)",
+      "Bash(chmod +x /tmp/run_chat_tests.sh)"
     ]
   }
 }

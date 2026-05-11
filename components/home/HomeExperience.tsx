@@ -515,7 +515,7 @@ function Hero({
               style={{ transform: `translate3d(0, ${parallax2 * -0.3}px, 0)` }}
             >
               <div
-                className="mb-6 inline-flex items-center gap-2.5 self-start rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em]"
+                className="mb-6 inline-flex items-center gap-2.5 self-start rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]"
                 style={{
                   background: theme.heroEyebrowBg,
                   color: theme.heroEyebrowFg,
@@ -547,7 +547,7 @@ function Hero({
                 <AnimatedHeadline parts={theme.headlineParts} />
               </h1>
 
-              <p className="mt-6 max-w-xl text-[17px] leading-relaxed md:text-[19px]" style={{ color: theme.muted }}>
+              <p className="mt-6 max-w-xl text-base leading-relaxed md:text-lg" style={{ color: theme.muted }}>
                 Descubre videojuegos, consulta fichas completas, compara puntuaciones, crea listas y organiza tu backlog personal.
               </p>
 
@@ -747,7 +747,7 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
       style={{ width: 320, perspective: 1200 }}
     >
       <div
-        className="absolute -left-3 -top-3 z-20 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest"
+        className="absolute -left-3 -top-3 z-20 rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-widest"
         style={{
           background: theme.accent,
           color: theme.btnPrimaryFg,
@@ -792,7 +792,7 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
             <span className="text-2xl font-black" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
               {game.userScore ? game.userScore.toFixed(1) : "?"}
             </span>
-            <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#fff", opacity: 0.7 }}>
+            <div className="text-xs font-bold uppercase tracking-wider text-white/70">
               <div>Usuarios</div>
               <div>{formatCompactNumber(game.ratings)}</div>
             </div>
@@ -801,7 +801,7 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
 
         <div className="absolute inset-x-0 bottom-0 p-5" style={{ transform: "translateZ(60px)" }}>
           <div
-            className="mb-1 text-[10px] font-black uppercase tracking-[0.2em]"
+            className="mb-1 text-xs font-black uppercase tracking-[0.2em]"
             style={{ color: theme.accent, fontFamily: theme.fontMono }}
           >
             {game.developer} · {game.year || "TBA"}
@@ -816,8 +816,8 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
             {game.genres.map((genre) => (
               <span
                 key={genre}
-                className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                style={{ background: "rgba(255,255,255,.15)", color: "#fff", backdropFilter: "blur(4px)" }}
+                className="rounded-full px-2 py-0.5 text-xs font-bold text-white"
+                style={{ background: "rgba(255,255,255,.15)", backdropFilter: "blur(4px)" }}
               >
                 {genre}
               </span>
@@ -885,7 +885,7 @@ function BigSearch({
           <path d="m21 21-4.3-4.3" />
         </svg>
         <input
-          className="w-full rounded-2xl py-5 pl-14 pr-6 text-[16px] font-medium outline-none transition md:pr-32"
+          className="w-full rounded-2xl py-5 pl-14 pr-6 text-base font-medium outline-none transition md:pr-32"
           onBlur={() => setTimeout(() => setFocused(false), 200)}
           onChange={(event) => setQuery(event.target.value)}
           onFocus={() => setFocused(true)}
@@ -902,7 +902,7 @@ function BigSearch({
           value={query}
         />
         <kbd
-          className="absolute right-5 hidden items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold md:flex"
+          className="absolute right-5 hidden items-center gap-1 rounded-md px-2 py-1 text-xs font-bold md:flex"
           style={{
             background: theme.kbdBg,
             border: `1px solid ${theme.border}`,
@@ -925,7 +925,7 @@ function BigSearch({
           }}
         >
           <div
-            className="px-4 py-2 text-[10px] font-black uppercase tracking-wider"
+            className="px-4 py-2 text-xs font-black uppercase tracking-wider"
             style={{ color: theme.muted, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}` }}
           >
             {results.length} resultados
@@ -942,7 +942,7 @@ function BigSearch({
                 <span aria-hidden="true" className="h-12 w-10 rounded-lg bg-white/5" />
               )}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-bold" style={{ color: theme.fg }}>
+                <div className="truncate text-base font-bold" style={{ color: theme.fg }}>
                   {game.title}
                 </div>
                 <div className="truncate text-xs" style={{ color: theme.muted }}>
@@ -989,10 +989,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 
   return (
     <div ref={ref}>
-      <div className="tabular-nums text-[28px] font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+      <div className="tabular-nums text-3xl font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
         {display}
       </div>
-      <div className="text-[11px] font-bold uppercase tracking-wider" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
+      <div className="text-xs font-bold uppercase tracking-wider" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
         {label}
       </div>
     </div>
@@ -1050,7 +1050,7 @@ function SectionHeader({
           <div className="mb-2 flex items-center gap-2">
             <span style={{ width: 24, height: 2, background: theme.accent, display: "inline-block" }} />
             <span
-              className="text-[11px] font-black uppercase tracking-[0.25em]"
+              className="text-xs font-black uppercase tracking-[0.25em]"
               style={{ color: theme.accent, fontFamily: theme.fontMono }}
             >
               {eyebrow}
@@ -1058,7 +1058,7 @@ function SectionHeader({
           </div>
         )}
         <h2
-          className="text-[32px] font-black leading-[1.05] tracking-tight md:text-[40px]"
+          className="text-3xl font-black leading-tight tracking-tight md:text-4xl"
           style={{ color: theme.fg, fontFamily: theme.fontDisplay, letterSpacing: "-0.02em" }}
         >
           {title}
@@ -1098,7 +1098,7 @@ function Marquee({ items, speed = 50 }: { items: Array<{ label: string; value: s
         {[...items, ...items, ...items].map((item, index) => (
           <span
             key={`${item.label}-${index}`}
-            className="inline-flex items-center gap-3 text-[28px] font-black tracking-tight"
+            className="inline-flex items-center gap-3 text-3xl font-black tracking-tight"
             style={{ color: theme.marqueeFg, fontFamily: theme.fontDisplay }}
           >
             <span>{item.label}</span>
@@ -1289,12 +1289,12 @@ function TiltCard({ game, priority = false }: { game: EnhancedGame; priority?: b
 
         <div className="absolute inset-x-0 bottom-0 p-4" style={{ transform: "translateZ(60px)" }}>
           <h3
-            className="text-[15px] font-black leading-tight text-white"
+            className="text-base font-black leading-tight text-white"
             style={{ textShadow: "0 2px 8px rgba(0,0,0,.6)", fontFamily: theme.fontDisplay }}
           >
             {game.title}
           </h3>
-          <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-white opacity-90">
+          <div className="mt-1 flex items-center gap-1.5 text-xs font-medium text-white opacity-90">
             <span>{game.year > 0 ? game.year : "TBA"}</span>
             <span style={{ opacity: 0.5 }}>·</span>
             <span className="truncate">{game.developer || game.publisher || game.platforms[0]}</span>
@@ -1349,7 +1349,7 @@ function StatusBadge({ status }: { status: Game["status"] }) {
 
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-wider"
+      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-black uppercase tracking-wider"
       style={{
         background: isUpcoming ? theme.statusUpcomingBg : theme.statusEarlyBg,
         color: isUpcoming ? theme.statusUpcomingFg : theme.statusEarlyFg,
@@ -1457,7 +1457,7 @@ function RankingRow({
         ) : null}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-[18px] font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+        <div className="truncate text-lg font-black" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
           {game.title}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm" style={{ color: theme.muted }}>
@@ -1471,7 +1471,7 @@ function RankingRow({
         </div>
       </div>
       <div className="flex items-center gap-4">
-        <span className="hidden text-right text-[13px] md:block" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
+        <span className="hidden text-right text-sm md:block" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
           {formatCompactNumber(game.ratings)} votos
         </span>
         <RatingPill score={game.userScore} size="md" />
@@ -1562,7 +1562,7 @@ function PlatformCard({ delay, platform }: { delay: number; platform: Platform }
             <PlatformGlyph color={color} kind={platform.kind} />
           </div>
           <span
-            className="rounded-full px-2.5 py-1 text-[11px] font-black tracking-wide tabular-nums"
+            className="rounded-full px-2.5 py-1 text-xs font-black tracking-wide tabular-nums"
             style={{
               background: hover ? `${color}1f` : theme.chipBg,
               color: hover ? color : theme.muted,
@@ -1575,12 +1575,12 @@ function PlatformCard({ delay, platform }: { delay: number; platform: Platform }
           </span>
         </div>
         <div
-          className="text-[22px] font-black leading-tight"
+          className="text-2xl font-black leading-tight"
           style={{ color: theme.fg, fontFamily: theme.fontDisplay, letterSpacing: "-0.01em" }}
         >
           {platform.name}
         </div>
-        <div className="mt-2 text-[13px] leading-relaxed" style={{ color: theme.muted }}>
+        <div className="mt-2 text-sm leading-relaxed" style={{ color: theme.muted }}>
           Rankings, lanzamientos y los más jugados.
         </div>
         <div
@@ -1684,17 +1684,17 @@ function CommunityListCard({
           </div>
         ))}
         <div
-          className="absolute left-3 top-3 z-10 rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-wider"
-          style={{ background: "rgba(0,0,0,.6)", color: "#fff", backdropFilter: "blur(8px)", fontFamily: theme.fontMono }}
+          className="absolute left-3 top-3 z-10 rounded-md px-2 py-1 text-xs font-black uppercase tracking-wider text-white"
+          style={{ background: "rgba(0,0,0,.6)", backdropFilter: "blur(8px)", fontFamily: theme.fontMono }}
         >
           {list.query?.pageSize ?? list.games.length} juegos
         </div>
       </div>
       <div className="p-5">
-        <div className="mb-1 text-[11px] font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
+        <div className="mb-1 text-xs font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
           {list.curator ?? "Curaduría comunitaria"}
         </div>
-        <h3 className="text-[18px] font-black leading-tight" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
+        <h3 className="text-lg font-black leading-tight" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>
           {list.title}
         </h3>
         <p className="mt-2 text-sm leading-relaxed" style={{ color: theme.muted }}>
@@ -1734,7 +1734,7 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
       <div className="mx-auto max-w-[1400px]">
         <div
           ref={ref}
-          className="relative overflow-hidden rounded-[36px] p-8 text-center md:p-20"
+          className="relative overflow-hidden rounded-[32px] p-8 text-center md:p-20"
           style={{
             background: theme.ctaBg,
             border: `1px solid ${theme.border}`,
@@ -1769,7 +1769,7 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
 
           <div className="relative">
             <div
-              className="mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.2em]"
+              className="mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em]"
               style={{
                 background: theme.heroEyebrowBg,
                 color: theme.accent,
@@ -1791,12 +1791,12 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
               <br />
               en GameIndex
             </h2>
-            <p className="mx-auto mt-5 max-w-xl text-[17px]" style={{ color: theme.muted }}>
+            <p className="mx-auto mt-5 max-w-xl text-base" style={{ color: theme.muted }}>
               Guarda pendientes, marca juegos completados, escribe reseñas y sigue lanzamientos.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <button
-                className="rounded-full px-7 py-3.5 text-[15px] font-black transition"
+                className="rounded-full px-7 py-3.5 text-base font-black transition"
                 style={{
                   background: theme.btnPrimary,
                   color: theme.btnPrimaryFg,
@@ -1807,7 +1807,7 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
                 Crear cuenta gratis
               </button>
               <Link
-                className="rounded-full px-7 py-3.5 text-[15px] font-black transition"
+                className="rounded-full px-7 py-3.5 text-base font-black transition"
                 href="/games"
                 style={{
                   background: "transparent",
@@ -1861,12 +1861,15 @@ function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void 
           ) : null}
           <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, transparent, ${theme.cardBg})` }} />
           <button
-            className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full"
+            aria-label="Cerrar"
+            className="absolute right-4 top-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
             onClick={onClose}
             style={{ background: "rgba(0,0,0,.6)", color: "#fff", backdropFilter: "blur(8px)" }}
             type="button"
           >
-            ?
+            <svg className="h-[18px] w-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" aria-hidden>
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
         <div className="relative grid gap-6 p-6 sm:-mt-24 sm:grid-cols-[140px,1fr]">
@@ -1881,7 +1884,7 @@ function GameModal({ game, onClose }: { game: EnhancedGame; onClose: () => void 
             />
           ) : null}
           <div className="sm:pt-24">
-            <div className="mb-1 text-[11px] font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
+            <div className="mb-1 text-xs font-black uppercase tracking-wider" style={{ color: theme.accent, fontFamily: theme.fontMono }}>
               {game.developer} · {game.year || "TBA"}
             </div>
             <h2 className="text-2xl font-black leading-tight md:text-3xl" style={{ color: theme.fg, fontFamily: theme.fontDisplay }}>

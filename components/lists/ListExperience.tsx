@@ -327,7 +327,7 @@ function CoverGrid({ games, canEdit, onRemove }: { games: Game[]; canEdit: boole
       {games.map((game) => (
         <article key={game.slug} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 transition hover:-translate-y-1 hover:border-electric/45">
           <Link href={`/games/${game.slug}`} className="block overflow-hidden rounded-xl">
-            <div className="relative aspect-[3/4] bg-background/70">
+            <div className="relative aspect-[3/4] bg-white/5">
               {game.coverUrl && (
                 <Image
                   src={game.coverUrl}
@@ -435,7 +435,7 @@ function ListSettingsDialog({
         <form onSubmit={saveSettings} className="space-y-5">
           <Field label="Título"><Input value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
           <Field label="Descripción">
-            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-foreground" />
+            <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-muted transition focus:border-electric focus:outline-none" />
           </Field>
           <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
             <input type="checkbox" checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} className="h-4 w-4 accent-blue-500" />
@@ -513,7 +513,7 @@ function AddGamesDialog({ accessToken, list, onClose, onSaved }: { accessToken: 
         <div className="mt-5 space-y-2">
           {results.map((game) => (
             <div key={game.slug} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-              <div className="relative h-16 w-12 overflow-hidden rounded-lg bg-background/60">
+              <div className="relative h-16 w-12 overflow-hidden rounded-xl bg-white/5">
                 {game.coverUrl && (
                   <Image src={game.coverUrl} alt="" fill sizes="48px" className="object-cover" />
                 )}
@@ -534,7 +534,7 @@ function Select({ value, onChange, options, labels }: { value: string; onChange:
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-11 w-full rounded-xl border border-white/10 bg-background/80 px-3 text-sm text-foreground shadow-inner transition focus:border-electric"
+      className="h-11 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-foreground transition focus:border-electric"
     >
       {options.map((option) => (
         <option key={option} value={option} className="bg-background text-foreground">

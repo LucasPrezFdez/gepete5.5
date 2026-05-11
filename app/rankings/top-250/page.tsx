@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { RankingPageHeader } from "@/components/rankings/RankingPageHeader";
 import { RankingTable } from "@/components/rankings/RankingTable";
-import { SectionHeader } from "@/components/sections/SectionHeader";
 import { getExploreGames } from "@/services/games";
+import { formatCompactNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,8 @@ export default async function Top250Page() {
   );
 
   const meanScore =
-    eligible.reduce((sum, game) => sum + game.userScore, 0) / (eligible.length || 1);
+    eligible.reduce((sum, game) => sum + game.userScore, 0) /
+    (eligible.length || 1);
 
   const sortedByVotes = eligible.map((game) => game.ratings).sort((a, b) => a - b);
   const percentileIndex = Math.floor(sortedByVotes.length * 0.8);
@@ -58,15 +60,38 @@ export default async function Top250Page() {
 
   const primary = pageResults[0];
   const errors = pageResults.map((result) => result.error).filter(Boolean) as string[];
+  const totalVotes = ranked.reduce((sum, g) => sum + g.ratings, 0);
+  const avgScore =
+    ranked.reduce((sum, g) => sum + g.userScore, 0) / Math.max(1, ranked.length);
+  const sourceLabel =
+    primary.source === "none" ? "API configurada" : primary.source.toUpperCase();
 
   return (
-    <section className="container-page py-10">
-      <SectionHeader eyebrow="Ranking API" title="Los 250 mejores videojuegos según la API" />
-      <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm leading-6 text-muted">
-        Mostrando {ranked.length} de {TARGET_COUNT} · Datos cargados desde{" "}
-        {primary.source === "none" ? "la API configurada" : primary.source.toUpperCase()}.
-        {errors.length > 0 ? ` ${errors.join(" ")}` : ""}
-      </div>
+    <section className="container-page space-y-6 py-10">
+      <RankingPageHeader
+        eyebrow="Ranking principal"
+        title="Los 250 mejores videojuegos"
+        highlightWord="250"
+        description="Media bayesiana sobre el catálogo completo con umbral dinámico de votos. El ranking principal de GameIndex."
+        accent="electric"
+        stats={[
+          { label: "Mostrando", value: `${ranked.length} / ${TARGET_COUNT}` },
+          {
+            label: "Nota media",
+            value: avgScore ? avgScore.toFixed(1) : "—",
+            accent: true
+          },
+          { label: "Votos totales", value: formatCompactNumber(totalVotes) },
+          { label: "Fuente", value: sourceLabel }
+        ]}
+      />
+
+      {errors.length > 0 && (
+        <p className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs text-muted">
+          {errors.join(" ")}
+        </p>
+      )}
+
       <RankingTable games={ranked} />
     </section>
   );

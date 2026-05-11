@@ -33,7 +33,7 @@ export function RankingTable({ games }: { games: Game[] }) {
                         className="object-cover transition-transform duration-200 group-hover:scale-105"
                       />
                     ) : (
-                      <span className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-wide text-muted">
+                      <span className="flex h-full w-full items-center justify-center text-xs uppercase tracking-wide text-muted">
                         Sin cover
                       </span>
                     )}

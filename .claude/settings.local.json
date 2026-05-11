@@ -101,7 +101,12 @@
       "Bash(curl -sN -X POST http://localhost:3000/api/chat -H \"Content-Type: application/json\" --data \"{\\\\\"messages\\\\\":[{\\\\\"role\\\\\":\\\\\"user\\\\\",\\\\\"content\\\\\":\\\\\"que juegos salen esta semana?\\\\\"}]}\" --max-time 90)",
       "Bash(tee /tmp/last.txt)",
       "Bash(cat)",
-      "Bash(chmod +x /tmp/run_chat_tests.sh)"
+      "Bash(chmod +x /tmp/run_chat_tests.sh)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

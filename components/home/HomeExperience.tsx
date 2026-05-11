@@ -580,7 +580,7 @@ function Hero({
                       }}
                       type="button"
                     >
-                      #{tag.label}
+                      {tag.label}
                     </button>
                   );
                 })}
@@ -885,7 +885,7 @@ function BigSearch({
           <path d="m21 21-4.3-4.3" />
         </svg>
         <input
-          className="w-full rounded-2xl py-5 pl-14 pr-6 text-base font-medium outline-none transition md:pr-32"
+          className="w-full rounded-2xl py-5 pl-14 pr-6 text-base font-medium outline-none transition"
           onBlur={() => setTimeout(() => setFocused(false), 200)}
           onChange={(event) => setQuery(event.target.value)}
           onFocus={() => setFocused(true)}
@@ -901,17 +901,6 @@ function BigSearch({
           }}
           value={query}
         />
-        <kbd
-          className="absolute right-5 hidden items-center gap-1 rounded-md px-2 py-1 text-xs font-bold md:flex"
-          style={{
-            background: theme.kbdBg,
-            border: `1px solid ${theme.border}`,
-            color: theme.muted,
-            fontFamily: theme.fontMono
-          }}
-        >
-          ?K
-        </kbd>
       </div>
 
       {focused && results.length > 0 && (
@@ -1733,12 +1722,30 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
   const theme = useTheme();
   const [ref, inView] = useInView<HTMLDivElement>();
 
+  const floatingGames = games.slice(0, 8);
+  const floatingLayout = [
+    { left: "4%", top: "18%", w: 96, h: 130, rot: -12, delay: 0, dur: 6, opacity: 0.85 },
+    { left: "2%", top: "62%", w: 88, h: 120, rot: 9, delay: 0.6, dur: 7, opacity: 0.7 },
+    { left: "11%", top: "86%", w: 78, h: 106, rot: -6, delay: 1.1, dur: 5.5, opacity: 0.6 },
+    { left: "88%", top: "12%", w: 92, h: 126, rot: 10, delay: 0.3, dur: 6.5, opacity: 0.8 },
+    { left: "92%", top: "48%", w: 96, h: 130, rot: -8, delay: 0.9, dur: 5.8, opacity: 0.85 },
+    { left: "86%", top: "82%", w: 82, h: 112, rot: 6, delay: 1.4, dur: 6.2, opacity: 0.65 },
+    { left: "18%", top: "8%", w: 64, h: 88, rot: 14, delay: 1.8, dur: 7.5, opacity: 0.45 },
+    { left: "80%", top: "2%", w: 60, h: 84, rot: -14, delay: 2.2, dur: 7, opacity: 0.4 }
+  ];
+
+  const stats: { value: string; label: string }[] = [
+    { value: "10k+", label: "Juegos" },
+    { value: "50k+", label: "Jugadores" },
+    { value: "120k+", label: "Reseñas" }
+  ];
+
   return (
-    <section className="px-4 py-16 sm:px-6 md:py-20 lg:px-8">
+    <section className="px-4 py-16 sm:px-6 md:py-24 lg:px-8">
       <div className="mx-auto max-w-[1400px]">
         <div
           ref={ref}
-          className="relative overflow-hidden rounded-[32px] p-8 text-center md:p-20"
+          className="relative overflow-hidden rounded-[32px] px-6 py-14 text-center md:px-20 md:py-24"
           style={{
             background: theme.ctaBg,
             border: `1px solid ${theme.border}`,
@@ -1747,60 +1754,102 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
             transition: "opacity .8s, transform .8s cubic-bezier(.2,.7,.3,1)"
           }}
         >
-          <div className="pointer-events-none absolute inset-0">
-            {games.slice(0, 6).map((game, index) => (
-              <div
-                key={game.slug}
-                className="absolute overflow-hidden rounded-xl"
-                style={{
-                  width: 80,
-                  height: 110,
-                  left: `${[5, 12, 88, 15, 82, 92][index]}%`,
-                  top: `${[15, 65, 25, 85, 70, 50][index]}%`,
-                  transform: `rotate(${[-10, 8, -6, 12, -8, 5][index]}deg)`,
-                  opacity: 0.45,
-                  filter: "blur(0.5px)",
-                  animation: `home-float ${5 + index * 0.5}s ease-in-out infinite ${index * 0.3}s`,
-                  boxShadow: "0 12px 32px rgba(0,0,0,.4)"
-                }}
-              >
-                {game.coverUrl ? (
-                  <Image alt="" aria-hidden="true" src={game.coverUrl} width={80} height={110} className="h-full w-full object-cover" />
-                ) : null}
-              </div>
-            ))}
+          <div
+            className="pointer-events-none absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full"
+            style={{ background: `radial-gradient(circle, ${theme.accent}22, transparent 70%)`, filter: "blur(20px)" }}
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute -bottom-40 -right-32 h-[460px] w-[460px] rounded-full"
+            style={{ background: `radial-gradient(circle, ${theme.accent}1c, transparent 70%)`, filter: "blur(20px)" }}
+            aria-hidden
+          />
+
+          <div className="pointer-events-none absolute inset-0 hidden sm:block" aria-hidden>
+            {floatingGames.map((game, index) => {
+              const layout = floatingLayout[index];
+              if (!layout) return null;
+              return (
+                <div
+                  key={game.slug}
+                  className="absolute overflow-hidden rounded-xl"
+                  style={{
+                    width: layout.w,
+                    height: layout.h,
+                    left: layout.left,
+                    top: layout.top,
+                    transform: `rotate(${layout.rot}deg)`,
+                    opacity: layout.opacity,
+                    animation: `home-float ${layout.dur}s ease-in-out infinite ${layout.delay}s`,
+                    boxShadow: `0 18px 48px rgba(0,0,0,.55), 0 0 0 1px ${theme.border}`
+                  }}
+                >
+                  {game.coverUrl ? (
+                    <Image alt="" aria-hidden="true" src={game.coverUrl} width={layout.w} height={layout.h} className="h-full w-full object-cover" />
+                  ) : null}
+                  <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{ background: `linear-gradient(180deg, transparent 55%, rgba(0,0,0,.55))` }}
+                  />
+                </div>
+              );
+            })}
           </div>
 
-          <div className="relative">
+          <div className="relative mx-auto max-w-2xl">
             <div
-              className="mb-5 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em]"
+              className="mb-6 inline-flex items-center gap-2.5 rounded-full py-2 pl-2 pr-4 text-[11px] font-black uppercase tracking-[0.24em] backdrop-blur-sm"
               style={{
-                background: theme.heroEyebrowBg,
+                background: `linear-gradient(135deg, ${theme.accent}1f, ${theme.accent}0a)`,
                 color: theme.accent,
-                border: `1px solid ${theme.heroEyebrowBorder}`,
+                border: `1px solid ${theme.accent}44`,
+                boxShadow: `0 8px 24px -8px ${theme.accent}55, inset 0 1px 0 ${theme.accent}22`,
                 fontFamily: theme.fontMono
               }}
             >
+              <span
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full"
+                style={{
+                  background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}aa)`,
+                  boxShadow: `0 0 16px ${theme.accent}cc, inset 0 1px 0 rgba(255,255,255,.35)`
+                }}
+                aria-hidden
+              >
+                <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </span>
               Únete a la comunidad
             </div>
             <h2
               className="font-black leading-[0.95] tracking-[-0.03em]"
               style={{
-                fontSize: "clamp(36px, 5vw, 64px)",
+                fontSize: "clamp(38px, 5.5vw, 72px)",
                 fontFamily: theme.fontDisplay,
                 color: theme.fg
               }}
             >
-              Empieza tu <span style={{ color: theme.accent }}>backlog</span>
+              Tu biblioteca de{" "}
+              <span
+                style={{
+                  background: `linear-gradient(135deg, ${theme.accent}, ${theme.accent}99)`,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text"
+                }}
+              >
+                videojuegos
+              </span>
               <br />
-              en GameIndex
+              en un solo lugar
             </h2>
-            <p className="mx-auto mt-5 max-w-xl text-base" style={{ color: theme.muted }}>
+            <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed sm:text-lg" style={{ color: theme.muted }}>
               Guarda pendientes, marca juegos completados, escribe reseñas y sigue lanzamientos.
             </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
+
+            <div className="mt-9 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
               <button
-                className="rounded-full px-7 py-3.5 text-base font-black transition"
+                className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full px-8 py-4 text-base font-black transition hover:scale-[1.03]"
                 style={{
                   background: theme.btnPrimary,
                   color: theme.btnPrimaryFg,
@@ -1808,20 +1857,57 @@ function FinalCTA({ games }: { games: EnhancedGame[] }) {
                 }}
                 type="button"
               >
-                Crear cuenta gratis
+                <span
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100"
+                  style={{ background: "linear-gradient(120deg, transparent 30%, rgba(255,255,255,.25) 50%, transparent 70%)" }}
+                  aria-hidden
+                />
+                <svg className="relative h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span className="relative">Crear cuenta gratis</span>
               </button>
               <Link
-                className="rounded-full px-7 py-3.5 text-base font-black transition"
+                className="group inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-black transition hover:scale-[1.03]"
                 href="/games"
                 style={{
-                  background: "transparent",
+                  background: theme.heroEyebrowBg,
                   color: theme.fg,
                   border: `1px solid ${theme.border}`
                 }}
               >
-                Explorar juegos →
+                Explorar juegos
+                <svg className="h-4 w-4 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </svg>
               </Link>
             </div>
+
+            <div
+              className="mt-12 flex flex-wrap items-center justify-center gap-x-10 gap-y-5 border-t pt-8"
+              style={{ borderColor: theme.border }}
+            >
+              {stats.map((stat) => (
+                <div key={stat.label} className="flex flex-col items-center">
+                  <div
+                    className="text-2xl font-black tracking-tight sm:text-3xl"
+                    style={{ color: theme.fg, fontFamily: theme.fontDisplay }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div
+                    className="mt-1 text-[10px] font-black uppercase tracking-[0.22em]"
+                    style={{ color: theme.muted, fontFamily: theme.fontMono }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-6 text-xs" style={{ color: theme.muted, fontFamily: theme.fontMono }}>
+              Sin tarjeta · Sin spam · Cancela cuando quieras
+            </p>
           </div>
         </div>
       </div>

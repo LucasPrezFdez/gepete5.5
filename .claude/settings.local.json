@@ -106,7 +106,8 @@
       "Bash(git merge *)",
       "Bash(git stash *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(./node_modules/.bin/tsc --noEmit)"
     ]
   }
 }

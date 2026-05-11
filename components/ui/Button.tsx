@@ -18,16 +18,18 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    "inline-flex items-center justify-center rounded-xl font-semibold transition hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-60",
-    "focus-visible:ring-2 focus-visible:ring-electric",
+    "inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-150 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97]",
+    "focus-visible:ring-2 focus-visible:ring-electric focus-visible:ring-offset-2 focus-visible:ring-offset-background",
     variant === "primary" &&
-      "bg-electric text-white shadow-glow hover:bg-electric/85",
+      "bg-electric text-white hover:bg-electric/90 hover:shadow-[0_0_22px_rgba(59,130,246,0.4)]",
     variant === "secondary" &&
-      "border border-white/10 bg-white/10 text-foreground hover:bg-white/15",
-    variant === "ghost" && "text-muted hover:bg-white/10 hover:text-foreground",
-    variant === "danger" && "bg-danger text-white hover:bg-danger/85",
-    size === "sm" && "h-9 px-3 text-sm",
-    size === "md" && "h-11 px-4 text-sm",
+      "border border-white/10 bg-white/[0.07] text-foreground hover:bg-white/[0.12] hover:border-white/[0.18]",
+    variant === "ghost" &&
+      "text-muted hover:bg-white/[0.07] hover:text-foreground",
+    variant === "danger" &&
+      "bg-danger text-white hover:bg-danger/85 hover:shadow-[0_0_22px_rgba(244,63,94,0.35)]",
+    size === "sm" && "h-8 px-3 text-[13px]",
+    size === "md" && "h-10 px-4 text-sm",
     size === "lg" && "h-12 px-6 text-base",
     className
   );

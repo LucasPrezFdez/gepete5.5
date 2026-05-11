@@ -3,6 +3,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/feedback/Toast";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 import { getSiteUrl } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -70,6 +71,7 @@ export default function RootLayout({
         </main>
         <Footer />
         <Toaster />
+        <ChatWidget />
       </body>
     </html>
   );

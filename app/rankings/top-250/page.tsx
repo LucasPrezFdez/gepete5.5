@@ -31,22 +31,26 @@ export default async function Top250Page() {
     }
   }
 
-  const scored = merged.filter((game) => game.userScore > 0 && game.ratings > 0);
+  const HARD_MIN_VOTES = 100;
+
+  const eligible = merged.filter(
+    (game) => game.userScore > 0 && game.ratings >= HARD_MIN_VOTES
+  );
 
   const meanScore =
-    scored.reduce((sum, game) => sum + game.userScore, 0) / (scored.length || 1);
+    eligible.reduce((sum, game) => sum + game.userScore, 0) / (eligible.length || 1);
 
-  const sortedByVotes = scored.map((game) => game.ratings).sort((a, b) => a - b);
-  const percentileIndex = Math.floor(sortedByVotes.length * 0.6);
-  const minVotes = sortedByVotes[percentileIndex] ?? 0;
+  const sortedByVotes = eligible.map((game) => game.ratings).sort((a, b) => a - b);
+  const percentileIndex = Math.floor(sortedByVotes.length * 0.8);
+  const minVotes = Math.max(sortedByVotes[percentileIndex] ?? 0, HARD_MIN_VOTES);
 
-  const bayesianScore = (game: (typeof scored)[number]) => {
+  const bayesianScore = (game: (typeof eligible)[number]) => {
     const v = game.ratings;
     const r = game.userScore;
     return (v / (v + minVotes)) * r + (minVotes / (v + minVotes)) * meanScore;
   };
 
-  const ranked = scored
+  const ranked = eligible
     .map((game) => ({ game, score: bayesianScore(game) }))
     .sort((a, b) => b.score - a.score || b.game.ratings - a.game.ratings)
     .slice(0, TARGET_COUNT)

@@ -6,6 +6,7 @@ import { RatingBadge } from "@/components/ratings/RatingBadge";
 import { getExploreGames } from "@/services/games";
 import { formatCompactNumber } from "@/lib/utils";
 import { dedupeBySlug, rankByBayesian } from "@/lib/ranking";
+import { RankingCard } from "@/components/rankings/RankingCard";
 
 export const dynamic = "force-dynamic";
 
@@ -301,184 +302,6 @@ function PodiumSlot({
   );
 }
 
-function CategoryCard({
-  href,
-  eyebrow,
-  title,
-  description,
-  accent,
-  className = "",
-  children
-}: {
-  href: string;
-  eyebrow: string;
-  title: string;
-  description?: string;
-  accent: "electric" | "violet" | "lime" | "danger";
-  className?: string;
-  children?: React.ReactNode;
-}) {
-  const accentMap = {
-    electric: {
-      eyebrow: "text-electric",
-      hover: "hover:border-electric/45 hover:shadow-glow",
-      blob: "bg-electric/15",
-      titleHover: "group-hover:text-electric"
-    },
-    violet: {
-      eyebrow: "text-violet-300",
-      hover: "hover:border-violet/45",
-      blob: "bg-violet/20",
-      titleHover: "group-hover:text-violet-200"
-    },
-    lime: {
-      eyebrow: "text-lime",
-      hover: "hover:border-lime/45",
-      blob: "bg-lime/15",
-      titleHover: "group-hover:text-lime"
-    },
-    danger: {
-      eyebrow: "text-danger",
-      hover: "hover:border-danger/45",
-      blob: "bg-danger/15",
-      titleHover: "group-hover:text-danger"
-    }
-  } as const;
-
-  const tone = accentMap[accent];
-
-  return (
-    <div
-      className={`group relative isolate flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface/80 shadow-card backdrop-blur transition duration-300 hover:-translate-y-1 ${tone.hover} ${className}`}
-    >
-      <div
-        className={`pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full blur-3xl transition-opacity duration-500 group-hover:opacity-90 ${tone.blob} opacity-60`}
-      />
-      <Link
-        href={href}
-        aria-label={title}
-        className="absolute inset-0 z-10 rounded-2xl"
-      >
-        <span className="sr-only">{title}</span>
-      </Link>
-      <div className="pointer-events-none relative z-20 flex flex-1 flex-col gap-4 p-6">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p
-              className={`text-[11px] font-bold uppercase tracking-[0.25em] ${tone.eyebrow}`}
-            >
-              {eyebrow}
-            </p>
-            <h3
-              className={`mt-2 text-xl font-black leading-tight transition md:text-2xl ${tone.titleHover}`}
-            >
-              {title}
-            </h3>
-          </div>
-          <span
-            aria-hidden
-            className="mt-1 text-muted transition-transform group-hover:translate-x-1 group-hover:text-foreground"
-          >
-            →
-          </span>
-        </div>
-        {description && (
-          <p className="text-sm leading-6 text-muted">{description}</p>
-        )}
-        {children && <div className="mt-auto pt-1">{children}</div>}
-      </div>
-    </div>
-  );
-}
-
-function ChipsCard({
-  href,
-  eyebrow,
-  title,
-  description,
-  accent,
-  className = "",
-  chips
-}: {
-  href: string;
-  eyebrow: string;
-  title: string;
-  description?: string;
-  accent: "electric" | "violet" | "lime" | "danger";
-  className?: string;
-  chips: React.ReactNode;
-}) {
-  const accentMap = {
-    electric: {
-      eyebrow: "text-electric",
-      hover: "hover:border-electric/45 hover:shadow-glow",
-      blob: "bg-electric/15",
-      titleHover: "group-hover:text-electric"
-    },
-    violet: {
-      eyebrow: "text-violet-300",
-      hover: "hover:border-violet/45",
-      blob: "bg-violet/20",
-      titleHover: "group-hover:text-violet-200"
-    },
-    lime: {
-      eyebrow: "text-lime",
-      hover: "hover:border-lime/45",
-      blob: "bg-lime/15",
-      titleHover: "group-hover:text-lime"
-    },
-    danger: {
-      eyebrow: "text-danger",
-      hover: "hover:border-danger/45",
-      blob: "bg-danger/15",
-      titleHover: "group-hover:text-danger"
-    }
-  } as const;
-
-  const tone = accentMap[accent];
-
-  return (
-    <div
-      className={`group relative isolate flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface/80 shadow-card backdrop-blur transition duration-300 hover:-translate-y-1 ${tone.hover} ${className}`}
-    >
-      <div
-        className={`pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full blur-3xl transition-opacity duration-500 group-hover:opacity-90 ${tone.blob} opacity-60`}
-      />
-
-      <Link
-        href={href}
-        className="relative block p-6 transition hover:bg-white/[0.03]"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p
-              className={`text-[11px] font-bold uppercase tracking-[0.25em] ${tone.eyebrow}`}
-            >
-              {eyebrow}
-            </p>
-            <h3
-              className={`mt-2 text-xl font-black leading-tight transition md:text-2xl ${tone.titleHover}`}
-            >
-              {title}
-            </h3>
-          </div>
-          <span
-            aria-hidden
-            className="mt-1 text-muted transition-transform group-hover:translate-x-1 group-hover:text-foreground"
-          >
-            →
-          </span>
-        </div>
-        {description && (
-          <p className="mt-3 text-sm leading-6 text-muted">{description}</p>
-        )}
-      </Link>
-
-      <div className="relative mt-auto px-6 pb-6 pt-1">{chips}</div>
-    </div>
-  );
-}
-
 function TopRankingCard({
   topFive,
   totalGames
@@ -487,7 +310,7 @@ function TopRankingCard({
   totalGames: number;
 }) {
   return (
-    <CategoryCard
+    <RankingCard
       href="/rankings/top-250"
       eyebrow="Ranking principal"
       title="Top 250 videojuegos"
@@ -503,7 +326,7 @@ function TopRankingCard({
             <li key={game.slug}>
               <Link
                 href={`/games/${game.slug}`}
-                className="pointer-events-auto flex items-center gap-3 rounded-xl border border-transparent bg-white/[0.03] px-3 py-2 transition hover:border-electric/45 hover:bg-electric/5"
+                className="flex items-center gap-3 rounded-xl border border-transparent bg-white/[0.03] px-3 py-2 transition hover:border-electric/45 hover:bg-electric/5"
               >
                 <span className="w-6 text-sm font-black tabular-nums text-muted">
                   {index + 1}
@@ -533,88 +356,85 @@ function TopRankingCard({
           ))
         )}
       </ol>
-    </CategoryCard>
+    </RankingCard>
   );
 }
 
 function PlatformsCard() {
   return (
-    <ChipsCard
+    <RankingCard
       href="/platforms/pc"
       eyebrow="Por plataforma"
       title="Mejores por plataforma"
       description="Lo más alto en cada catálogo: PC, consolas y portátiles."
       accent="violet"
       className="lg:col-span-3"
-      chips={
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {FEATURED_PLATFORMS.map((platform) => (
-            <Link
-              key={platform.slug}
-              href={`/platforms/${platform.slug}`}
-              className={`flex items-center justify-center rounded-xl border px-4 py-3 text-center text-sm font-semibold transition ${platform.tone}`}
-            >
-              {platform.name}
-            </Link>
-          ))}
-        </div>
-      }
-    />
+    >
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {FEATURED_PLATFORMS.map((platform) => (
+          <Link
+            key={platform.slug}
+            href={`/platforms/${platform.slug}`}
+            className={`flex items-center justify-center rounded-xl border px-4 py-3 text-center text-sm font-semibold transition ${platform.tone}`}
+          >
+            {platform.name}
+          </Link>
+        ))}
+      </div>
+    </RankingCard>
   );
 }
 
 function GenresCard() {
   return (
-    <ChipsCard
+    <RankingCard
       href="/genres/rpg"
       eyebrow="Por género"
       title="Top por género"
       description="Desde RPG hasta indies — un ranking por cada estilo de juego."
       accent="lime"
       className="lg:col-span-3"
-      chips={
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {FEATURED_GENRES.map((genre) => (
-            <Link
-              key={genre.slug}
-              href={`/genres/${genre.slug}`}
-              className="flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center text-sm font-medium text-foreground transition hover:border-lime/45 hover:bg-lime/10 hover:text-lime"
-            >
-              {genre.name}
-            </Link>
-          ))}
-        </div>
-      }
-    />
+    >
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {FEATURED_GENRES.map((genre) => (
+          <Link
+            key={genre.slug}
+            href={`/genres/${genre.slug}`}
+            className="flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center text-sm font-medium text-foreground transition hover:border-lime/45 hover:bg-lime/10 hover:text-lime"
+          >
+            {genre.name}
+          </Link>
+        ))}
+      </div>
+    </RankingCard>
   );
 }
 
 function DecadesCard() {
   return (
-    <ChipsCard
+    <RankingCard
       href="/rankings/decades/2020s"
       eyebrow="Por década"
       title="Cápsulas del tiempo"
       description="Los mejores juegos de cada era del videojuego."
       accent="violet"
       className="lg:col-span-2"
-      chips={
-        <div className="grid grid-cols-2 gap-2">
-          {DECADES.map((decade) => (
-            <Link
-              key={decade.slug}
-              href={`/rankings/decades/${decade.slug}`}
-              className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center transition hover:border-violet/45 hover:bg-violet/10"
-            >
-              <p className="text-lg font-black text-foreground">{decade.label}</p>
-              <p className="text-[10px] uppercase tracking-wider text-muted">
-                Desde {decade.year}
-              </p>
-            </Link>
-          ))}
-        </div>
-      }
-    />
+    >
+      <div className="grid grid-cols-2 gap-2">
+        {DECADES.map((decade) => (
+          <Link
+            key={decade.slug}
+            href={`/rankings/decades/${decade.slug}`}
+            className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center transition hover:border-violet/45 hover:bg-violet/10"
+          >
+            <p className="text-lg font-black text-foreground">{decade.label}</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted">
+              Desde {decade.year}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </RankingCard>
   );
 }
 
@@ -626,7 +446,7 @@ function UpcomingCard({
   count: number;
 }) {
   return (
-    <CategoryCard
+    <RankingCard
       href="/rankings/upcoming"
       eyebrow="Más esperados"
       title="Próximos lanzamientos"
@@ -654,7 +474,7 @@ function UpcomingCard({
           ))
         )}
       </ul>
-    </CategoryCard>
+    </RankingCard>
   );
 }
 
@@ -664,7 +484,7 @@ function ReviewedCard({
   games: Awaited<ReturnType<typeof getExploreGames>>["games"];
 }) {
   return (
-    <CategoryCard
+    <RankingCard
       href="/rankings/reviewed"
       eyebrow="Reseñas recientes"
       title="Lo más comentado"
@@ -691,6 +511,6 @@ function ReviewedCard({
           ))
         )}
       </ul>
-    </CategoryCard>
+    </RankingCard>
   );
 }

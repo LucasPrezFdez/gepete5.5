@@ -248,7 +248,7 @@ export function ChatWidget() {
   );
 
   return (
-    <div className="fixed bottom-4 right-4 z-[55] flex flex-col items-end gap-3 md:bottom-6 md:right-6">
+    <div className="pointer-events-none fixed bottom-4 right-4 z-[55] flex flex-col items-end gap-3 md:bottom-6 md:right-6">
       <div
         role="dialog"
         aria-label="Asistente IA de videojuegos"
@@ -370,7 +370,7 @@ export function ChatWidget() {
         aria-expanded={open}
         aria-label={open ? "Cerrar asistente IA" : "Abrir asistente IA"}
         className={cn(
-          "relative inline-flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-electric to-violet text-xl text-white shadow-glow",
+          "pointer-events-auto relative inline-flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-electric to-violet text-xl text-white shadow-glow",
           "transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:scale-105 active:scale-95",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         )}

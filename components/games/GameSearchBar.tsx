@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Game } from "@/data/games";
@@ -64,20 +65,38 @@ export function GameSearchBar({ compact = false }: { compact?: boolean }) {
         className={cn(!compact && "h-14 rounded-2xl text-base")}
       />
       {(results.length > 0 || loading) && (
-        <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-elevated shadow-card">
-          {loading && results.length === 0 && <div className="px-4 py-3 text-sm text-muted">Buscando en el catálogo...</div>}
+        <div className="absolute left-0 right-0 top-full z-30 mt-1.5 overflow-hidden rounded-2xl border border-white/[0.08] bg-elevated shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
+          {loading && results.length === 0 && (
+            <div className="flex items-center gap-2 px-4 py-3.5 text-sm text-muted">
+              <svg className="animate-spin text-electric/60" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              Buscando en el catálogo...
+            </div>
+          )}
           {results.map((game) => (
             <Link
               key={game.slug}
               href={`/games/${game.slug}`}
-              className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-white/10"
+              className="flex items-center gap-3 px-3 py-2.5 transition-colors duration-100 hover:bg-white/[0.07]"
               onClick={() => setQuery("")}
             >
-              <span>
-                <strong>{game.title}</strong>
-                <span className="ml-2 text-muted">{game.year || "TBA"}</span>
+              {game.coverUrl && (
+                <span className="relative block h-11 w-8 flex-shrink-0 overflow-hidden rounded-md bg-white/5">
+                  <Image src={game.coverUrl} alt="" fill sizes="32px" className="object-cover" />
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold">{game.title}</span>
+                <span className="block truncate text-xs text-muted/70">
+                  {game.year || "TBA"}{game.developer ? ` · ${game.developer}` : ""}
+                </span>
               </span>
-              <span className="text-xs text-muted">{game.developer}</span>
+              {game.userScore > 0 && (
+                <span className="shrink-0 text-xs font-bold tabular-nums text-electric/80">
+                  {game.userScore.toFixed(1)}
+                </span>
+              )}
             </Link>
           ))}
         </div>

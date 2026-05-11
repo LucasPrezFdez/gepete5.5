@@ -1,4 +1,5 @@
-﻿import Link from "next/link";
+﻿import Image from "next/image";
+import Link from "next/link";
 import { Game } from "@/data/games";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
 import { formatCompactNumber } from "@/lib/utils";
@@ -21,10 +22,31 @@ export function RankingTable({ games }: { games: Game[] }) {
             <tr key={game.slug} className="border-t border-white/10 hover:bg-white/5">
               <td className="px-4 py-4 font-bold text-muted">{index + 1}</td>
               <td className="px-4 py-4">
-                <Link href={`/games/${game.slug}`} className="font-semibold hover:text-electric">
-                  {game.title}
+                <Link href={`/games/${game.slug}`} className="group flex items-center gap-3">
+                  <span className="relative block h-16 w-12 flex-shrink-0 overflow-hidden rounded-md border border-white/10 bg-white/5">
+                    {game.coverUrl ? (
+                      <Image
+                        src={game.coverUrl}
+                        alt={`Cover de ${game.title}`}
+                        fill
+                        sizes="48px"
+                        className="object-cover transition-transform duration-200 group-hover:scale-105"
+                      />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-wide text-muted">
+                        Sin cover
+                      </span>
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold group-hover:text-electric">
+                      {game.title}
+                    </span>
+                    <span className="block truncate text-xs text-muted">
+                      {game.year} · {game.genres.join(", ")}
+                    </span>
+                  </span>
                 </Link>
-                <p className="text-xs text-muted">{game.year} · {game.genres.join(", ")}</p>
               </td>
               <td className="hidden px-4 py-4 text-muted md:table-cell">
                 {game.platforms.slice(0, 3).join(", ")}

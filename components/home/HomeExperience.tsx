@@ -757,7 +757,7 @@ function FeaturedSpotlight({ game }: { game: EnhancedGame }) {
           animation: "home-float 4s ease-in-out infinite"
         }}
       >
-        ? Featured
+        Featured
       </div>
 
       <div
@@ -1151,6 +1151,58 @@ function DragCarousel({ children }: { children: ReactNode }) {
     };
     requestAnimationFrame(step);
   };
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    let target = node.scrollLeft;
+    let raf = 0;
+    let animating = false;
+    const originalSnap = node.style.scrollSnapType;
+
+    const tick = () => {
+      const current = ref.current;
+      if (!current) {
+        animating = false;
+        return;
+      }
+      const diff = target - current.scrollLeft;
+      if (Math.abs(diff) < 0.5) {
+        current.scrollLeft = target;
+        current.style.scrollSnapType = originalSnap;
+        animating = false;
+        return;
+      }
+      current.scrollLeft += diff * 0.18;
+      raf = requestAnimationFrame(tick);
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
+      const absX = Math.abs(event.deltaX);
+      const absY = Math.abs(event.deltaY);
+      if (absY <= absX) return;
+      const maxScroll = node.scrollWidth - node.clientWidth;
+      if (maxScroll <= 0) return;
+      const goingDown = event.deltaY > 0;
+      if (goingDown && node.scrollLeft >= maxScroll - 1) return;
+      if (!goingDown && node.scrollLeft <= 0) return;
+      event.preventDefault();
+      if (!animating) target = node.scrollLeft;
+      target = Math.max(0, Math.min(maxScroll, target + event.deltaY));
+      node.style.scrollSnapType = "none";
+      if (!animating) {
+        animating = true;
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      node.removeEventListener("wheel", onWheel);
+      if (raf) cancelAnimationFrame(raf);
+      node.style.scrollSnapType = originalSnap;
+    };
+  }, []);
 
   return (
     <div

@@ -14,10 +14,11 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
 const MAX_MESSAGES = 20;
 const MAX_CHARS_PER_MESSAGE = 4000;
-const MAX_TOOL_ROUNDS = 4;
+const MAX_TOOL_ROUNDS = 3;
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 40;
+const RATE_BUCKET_SWEEP_THRESHOLD = 1000;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 type ChatRole = "user" | "assistant" | "tool" | "system";
@@ -684,6 +685,11 @@ function getClientIp(request: Request) {
 
 function takeRateToken(key: string) {
   const now = Date.now();
+  if (rateBuckets.size > RATE_BUCKET_SWEEP_THRESHOLD) {
+    for (const [k, b] of rateBuckets) {
+      if (b.resetAt <= now) rateBuckets.delete(k);
+    }
+  }
   const bucket = rateBuckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
     rateBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });

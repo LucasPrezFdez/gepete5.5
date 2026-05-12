@@ -16,6 +16,7 @@ create table profiles (
   display_name text,
   bio text,
   avatar_url text,
+  banner_url text,
   created_at timestamptz default now()
 );
 
@@ -217,6 +218,7 @@ alter table profiles add column if not exists updated_at timestamptz default now
 alter table profiles add column if not exists onboarding_completed boolean default false;
 alter table profiles add column if not exists favorite_platforms text[] default '{}';
 alter table profiles add column if not exists favorite_genres text[] default '{}';
+alter table profiles add column if not exists banner_url text;
 
 alter table games add column if not exists last_synced_at timestamptz;
 alter table games add column if not exists source_priority text default 'external';

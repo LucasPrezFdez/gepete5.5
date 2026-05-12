@@ -156,6 +156,7 @@ export function profileFromRow(row: any): Profile {
     displayName: row.display_name ?? row.username ?? "Usuario",
     bio: row.bio ?? null,
     avatarUrl: row.avatar_url ?? null,
+    bannerUrl: row.banner_url ?? null,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
     favoritePlatforms: Array.isArray(row.favorite_platforms) ? row.favorite_platforms.map(String) : [],

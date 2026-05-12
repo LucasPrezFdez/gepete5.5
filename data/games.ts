@@ -40,6 +40,7 @@ export type Profile = {
   displayName: string;
   bio?: string | null;
   avatarUrl?: string | null;
+  bannerUrl?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   favoritePlatforms: string[];

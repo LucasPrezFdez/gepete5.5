@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   let query = serviceClient
     .from("lists")
-    .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,created_at), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))")
+    .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))")
     .eq("is_public", true)
     .order("created_at", { ascending: false })
     .limit(24);

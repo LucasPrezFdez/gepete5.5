@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { GameHero } from "@/components/games/GameHero";
 import { GameCommunity } from "@/components/games/GameCommunity";
 import { MediaGallery } from "@/components/games/MediaGallery";
+import { GameDlcs } from "@/components/games/GameDlcs";
+import { GameLinks } from "@/components/games/GameLinks";
+import { GameReleaseDates } from "@/components/games/GameReleaseDates";
 import { GameGrid } from "@/components/games/GameGrid";
 import { ReviewCard } from "@/components/reviews/ReviewCard";
 import { ScoreDistribution } from "@/components/ratings/ScoreDistribution";
@@ -11,7 +14,12 @@ import { SectionHeader } from "@/components/sections/SectionHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader } from "@/components/ui/Card";
-import { getGameBySlug, getIgdbScoreSummaryByGameSlug, getSimilarGames } from "@/services/games";
+import {
+  getGameBySlug,
+  getGameRichDetailsBySlug,
+  getIgdbScoreSummaryByGameSlug,
+  getSimilarGames
+} from "@/services/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import { reviewFromRow } from "@/services/community";
 
@@ -40,11 +48,22 @@ export default async function GameDetailPage({ params }: { params: Params }) {
   const game = await getGameBySlug(slug);
   if (!game) notFound();
 
-  const [similar, reviews, igdbScores] = await Promise.all([
+  const [similar, reviews, igdbScores, richDetails] = await Promise.all([
     getSimilarGames(game, 6),
     getReviewSnippets(game.slug),
-    getIgdbScoreSummaryByGameSlug(game.slug)
+    getIgdbScoreSummaryByGameSlug(game.slug),
+    getGameRichDetailsBySlug(game.slug)
   ]);
+
+  const screenshots = richDetails?.screenshots ?? [];
+  const videos = richDetails?.videos ?? [];
+  const dlcs = richDetails?.dlcs ?? [];
+  const releaseDates = richDetails?.releaseDates ?? [];
+  const websites = richDetails?.websites ?? [];
+  const franchiseLabel =
+    richDetails?.franchises?.map((entry) => entry.name).filter(Boolean).join(", ") || game.franchise || "Independiente";
+  const gameModesLabel =
+    richDetails?.gameModes?.filter(Boolean).join(", ") || (game.modes.length ? game.modes.join(", ") : "Información no disponible");
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -86,7 +105,10 @@ export default async function GameDetailPage({ params }: { params: Params }) {
       </nav>
 
       <section id="summary" className="container-page grid gap-8 py-10 lg:grid-cols-[1.1fr_.9fr]">
-        <div id="media"><MediaGallery game={game} /></div>
+        <div id="media" className="space-y-5">
+          <MediaGallery game={game} screenshots={screenshots} videos={videos} />
+          <GameDlcs dlcs={dlcs} />
+        </div>
         <div className="space-y-5">
           <Card>
             <CardHeader><h2 className="text-xl font-bold">Sinopsis</h2></CardHeader>
@@ -101,11 +123,14 @@ export default async function GameDetailPage({ params }: { params: Params }) {
                 <Info label="Desarrolladora" value={game.developer} />
                 <Info label="Publisher" value={game.publisher} />
                 <Info label="Motor gráfico" value={game.engine ?? "No disponible"} />
-                <Info label="Modos" value={game.modes.join(", ")} />
-                <Info label="Saga/franquicia" value={game.franchise ?? "Independiente"} />
+                <Info label="Modos" value={gameModesLabel} />
+                <Info label="Saga/franquicia" value={franchiseLabel} />
               </dl>
             </CardContent>
           </Card>
+
+          <GameReleaseDates releaseDates={releaseDates} />
+          <GameLinks websites={websites} />
 
           <Card>
             <CardHeader><h2 className="text-xl font-bold">Dónde jugar</h2></CardHeader>

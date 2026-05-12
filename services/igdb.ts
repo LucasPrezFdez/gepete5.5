@@ -525,6 +525,218 @@ export async function getIgdbGameById(idOrSlug: string) {
   return games[0] ?? null;
 }
 
+type IgdbScreenshot = { id?: number; image_id?: string; width?: number; height?: number };
+type IgdbVideo = { id?: number; name?: string; video_id?: string };
+type IgdbReleaseDate = {
+  id?: number;
+  date?: number;
+  human?: string;
+  region?: number;
+  platform?: { id?: number; name?: string };
+};
+type IgdbDlcRef = { id?: number; name?: string; slug?: string; cover?: { id?: number; image_id?: string; url?: string } };
+type IgdbFranchiseRef = { id?: number; name?: string; slug?: string };
+type IgdbGameMode = { id?: number; name?: string };
+type IgdbWebsite = { id?: number; url?: string; category?: number };
+
+export type IgdbRichGameDetails = {
+  screenshots: Array<{ url: string; width?: number; height?: number }>;
+  videos: Array<{ id: string; name: string }>;
+  dlcs: Array<{ name: string; slug: string | null; coverUrl: string | null; kind: "dlc" | "expansion" }>;
+  releaseDates: Array<{ date: string | null; human: string | null; region: string | null; platform: string | null }>;
+  franchises: Array<{ name: string; slug: string | null }>;
+  gameModes: string[];
+  websites: Array<{ category: WebsiteCategory; url: string }>;
+};
+
+export type WebsiteCategory =
+  | "official"
+  | "steam"
+  | "wikipedia"
+  | "youtube"
+  | "twitch"
+  | "instagram"
+  | "twitter"
+  | "reddit"
+  | "discord"
+  | "epic"
+  | "gog"
+  | "other";
+
+const IGDB_REGION_MAP: Record<number, string> = {
+  1: "Europa",
+  2: "Norteamérica",
+  3: "Australia",
+  4: "Nueva Zelanda",
+  5: "Japón",
+  6: "China",
+  7: "Asia",
+  8: "Mundial",
+  9: "Corea"
+};
+
+const IGDB_WEBSITE_CATEGORY_MAP: Record<number, WebsiteCategory> = {
+  1: "official",
+  2: "wikipedia",
+  3: "wikipedia",
+  5: "twitter",
+  6: "twitch",
+  8: "instagram",
+  9: "youtube",
+  10: "instagram",
+  13: "steam",
+  14: "reddit",
+  15: "other",
+  16: "epic",
+  17: "gog",
+  18: "discord"
+};
+
+const IGDB_RICH_DETAILS_FIELDS = [
+  "id",
+  "screenshots.image_id",
+  "screenshots.width",
+  "screenshots.height",
+  "videos.video_id",
+  "videos.name",
+  "release_dates.date",
+  "release_dates.human",
+  "release_dates.region",
+  "release_dates.platform.name",
+  "dlcs.id",
+  "dlcs.name",
+  "dlcs.slug",
+  "dlcs.cover.image_id",
+  "expansions.id",
+  "expansions.name",
+  "expansions.slug",
+  "expansions.cover.image_id",
+  "franchises.id",
+  "franchises.name",
+  "franchises.slug",
+  "franchise.id",
+  "franchise.name",
+  "franchise.slug",
+  "game_modes.name",
+  "websites.url",
+  "websites.category"
+].join(",");
+
+export async function getIgdbRichGameDetails(igdbId: string | number): Promise<IgdbRichGameDetails | null> {
+  const numericId = Number(igdbId);
+  if (!Number.isFinite(numericId)) return null;
+
+  try {
+    const rows = await fetchIgdb<Array<{
+      id?: number;
+      screenshots?: IgdbScreenshot[];
+      videos?: IgdbVideo[];
+      release_dates?: IgdbReleaseDate[];
+      dlcs?: IgdbDlcRef[];
+      expansions?: IgdbDlcRef[];
+      franchises?: IgdbFranchiseRef[];
+      franchise?: IgdbFranchiseRef;
+      game_modes?: IgdbGameMode[];
+      websites?: IgdbWebsite[];
+    }>>(
+      "games",
+      [
+        `fields ${IGDB_RICH_DETAILS_FIELDS};`,
+        `where id = ${Math.floor(numericId)};`,
+        "limit 1;"
+      ].join("\n")
+    );
+
+    const row = rows?.[0];
+    if (!row) return null;
+
+    const screenshots = (row.screenshots ?? [])
+      .filter((screenshot) => screenshot.image_id)
+      .map((screenshot) => ({
+        url: `https://images.igdb.com/igdb/image/upload/t_screenshot_huge/${screenshot.image_id}.jpg`,
+        width: screenshot.width,
+        height: screenshot.height
+      }));
+
+    const videos = (row.videos ?? [])
+      .filter((video) => video.video_id)
+      .map((video) => ({ id: video.video_id as string, name: video.name ?? "Vídeo" }));
+
+    const dlcs = [
+      ...(row.dlcs ?? []).map((entry) => mapDlc(entry, "dlc")),
+      ...(row.expansions ?? []).map((entry) => mapDlc(entry, "expansion"))
+    ].filter((entry): entry is IgdbRichGameDetails["dlcs"][number] => entry !== null);
+
+    const releaseDates = (row.release_dates ?? []).map<IgdbRichGameDetails["releaseDates"][number]>((entry) => ({
+      date: entry.date ? new Date(entry.date * 1000).toISOString().slice(0, 10) : null,
+      human: entry.human ?? null,
+      region: entry.region && IGDB_REGION_MAP[entry.region] ? IGDB_REGION_MAP[entry.region] : null,
+      platform: entry.platform?.name ?? null
+    }));
+
+    const franchiseEntries: IgdbFranchiseRef[] = [];
+    if (row.franchise) franchiseEntries.push(row.franchise);
+    if (Array.isArray(row.franchises)) franchiseEntries.push(...row.franchises);
+    const franchises = dedupeFranchises(franchiseEntries);
+
+    const gameModes = (row.game_modes ?? [])
+      .map((mode) => mode.name?.trim())
+      .filter((name): name is string => Boolean(name));
+
+    const websites = (row.websites ?? [])
+      .filter((site) => site.url)
+      .map<IgdbRichGameDetails["websites"][number]>((site) => ({
+        category:
+          (site.category && IGDB_WEBSITE_CATEGORY_MAP[site.category]) ||
+          detectWebsiteCategory(site.url ?? ""),
+        url: site.url as string
+      }));
+
+    return { screenshots, videos, dlcs, releaseDates, franchises, gameModes, websites };
+  } catch {
+    return null;
+  }
+}
+
+function mapDlc(entry: IgdbDlcRef, kind: "dlc" | "expansion") {
+  if (!entry?.name) return null;
+  const coverId = entry.cover?.image_id;
+  return {
+    name: entry.name,
+    slug: entry.slug ?? null,
+    coverUrl: coverId ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${coverId}.jpg` : null,
+    kind
+  };
+}
+
+function dedupeFranchises(entries: IgdbFranchiseRef[]) {
+  const seen = new Set<string>();
+  const result: IgdbRichGameDetails["franchises"] = [];
+  for (const entry of entries) {
+    if (!entry?.name) continue;
+    const key = (entry.slug ?? entry.name).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ name: entry.name, slug: entry.slug ?? null });
+  }
+  return result;
+}
+
+function detectWebsiteCategory(url: string): WebsiteCategory {
+  const lower = url.toLowerCase();
+  if (lower.includes("store.steampowered.com")) return "steam";
+  if (lower.includes("epicgames.com")) return "epic";
+  if (lower.includes("gog.com")) return "gog";
+  if (lower.includes("youtube.com")) return "youtube";
+  if (lower.includes("twitch.tv")) return "twitch";
+  if (lower.includes("twitter.com") || lower.includes("x.com")) return "twitter";
+  if (lower.includes("instagram.com")) return "instagram";
+  if (lower.includes("reddit.com")) return "reddit";
+  if (lower.includes("discord.com") || lower.includes("discord.gg")) return "discord";
+  if (lower.includes("wikipedia.org")) return "wikipedia";
+  return "other";
+}
+
 function normalizeIgdbImageUrl(url?: string) {
   if (!url) return undefined;
 

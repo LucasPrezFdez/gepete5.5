@@ -1,10 +1,12 @@
 ﻿import type { Game, GameSort, GameStatus } from "@/data/games";
 import {
   getIgdbGameById,
+  getIgdbRichGameDetails,
   IgdbApiError,
   IGDB_PAGE_SIZE,
   listIgdbGames,
   type IgdbGame,
+  type IgdbRichGameDetails,
   type NormalizedExternalGame,
   normalizeIgdbGame
 } from "@/services/igdb";
@@ -848,6 +850,33 @@ export async function getIgdbScoreSummaryByGameSlug(slug: string): Promise<IgdbS
       const summary = igdbGame ? toIgdbScoreSummary(igdbGame) : null;
 
       if (summary) return summary;
+    } catch (error) {
+      if (error instanceof IgdbApiError && error.code === "missing-credentials") {
+        return null;
+      }
+    }
+  }
+
+  return null;
+}
+
+export async function getGameRichDetailsBySlug(slug: string): Promise<IgdbRichGameDetails | null> {
+  const lookupKeys = await getIgdbLookupKeys(slug);
+
+  for (const key of lookupKeys) {
+    try {
+      const numericId = Number(key);
+      if (Number.isFinite(numericId)) {
+        const details = await getIgdbRichGameDetails(numericId);
+        if (details) return details;
+        continue;
+      }
+
+      const igdbGame = await getIgdbGameById(key);
+      if (igdbGame?.id) {
+        const details = await getIgdbRichGameDetails(igdbGame.id);
+        if (details) return details;
+      }
     } catch (error) {
       if (error instanceof IgdbApiError && error.code === "missing-credentials") {
         return null;

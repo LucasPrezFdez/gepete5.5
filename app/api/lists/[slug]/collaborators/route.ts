@@ -7,6 +7,7 @@ import {
   getListPermissions,
   removeListCollaboratorByUsername
 } from "@/services/lists";
+import { createNotification } from "@/services/notifications";
 
 type Params = Promise<{ slug: string }>;
 
@@ -48,7 +49,15 @@ export async function POST(request: Request, { params }: { params: Params }) {
   if (!permissions.canManage) return NextResponse.json({ error: "Solo el propietario puede añadir colaboradores." }, { status: 403 });
 
   try {
-    await addListCollaboratorByUsername(serviceClient, list.id, list.user_id, username);
+    const collaborator = await addListCollaboratorByUsername(serviceClient, list.id, list.user_id, username);
+    if (collaborator?.id) {
+      await createNotification({
+        recipientId: collaborator.id,
+        actorId: auth.user.id,
+        type: "list_collaborator",
+        listId: list.id
+      });
+    }
     return NextResponse.json({ ok: true, collaborators: await getListCollaborators(list.id) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "No se pudo añadir el colaborador." }, { status: 400 });

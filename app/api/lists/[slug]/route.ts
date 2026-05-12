@@ -9,6 +9,7 @@ import {
   listFromRow,
   upsertListItems
 } from "@/services/lists";
+import { createNotification } from "@/services/notifications";
 
 type Params = Promise<{ slug: string }>;
 
@@ -113,12 +114,28 @@ export async function POST(request: Request, { params }: { params: Params }) {
   const permissions = await getListPermissions(serviceClient, list, auth.user.id);
   if (!permissions.canView) return NextResponse.json({ error: "Esta lista es privada." }, { status: 403 });
 
+  const { data: existingLike } = await serviceClient
+    .from("list_likes")
+    .select("list_id")
+    .eq("list_id", list.id)
+    .eq("user_id", auth.user.id)
+    .maybeSingle();
+
   const { error } = await serviceClient.from("list_likes").upsert({ list_id: list.id, user_id: auth.user.id }, { onConflict: "list_id,user_id" });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const { count } = await serviceClient.from("list_likes").select("list_id", { count: "exact", head: true }).eq("list_id", list.id);
   const likesCount = count ?? Number(list.likes_count ?? 0);
   await serviceClient.from("lists").update({ likes_count: likesCount }).eq("id", list.id);
+
+  if (!existingLike && list.user_id) {
+    await createNotification({
+      recipientId: list.user_id,
+      actorId: auth.user.id,
+      type: "list_like",
+      listId: list.id
+    });
+  }
 
   return NextResponse.json({ ok: true, likesCount });
 }

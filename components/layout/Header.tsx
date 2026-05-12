@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { AuthSession } from "@/services/auth-types";
 import { GameSearchBar } from "@/components/games/GameSearchBar";
 import { Button } from "@/components/ui/Button";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import { cn } from "@/lib/utils";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 
@@ -136,6 +137,7 @@ export function Header() {
         <div className="hidden items-center gap-1.5 md:flex">
           {session ? (
             <>
+              <NotificationsBell session={session} />
               <Button variant={isProfileActive ? "secondary" : "ghost"} size="sm" asChild href={profileHref}>
                 Mi perfil
               </Button>

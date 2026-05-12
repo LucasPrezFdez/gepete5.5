@@ -4,7 +4,8 @@ export type NotificationType =
   | "follow"
   | "review_helpful"
   | "list_like"
-  | "list_collaborator";
+  | "list_collaborator"
+  | "game_released";
 
 export type NotificationRow = {
   id: string;
@@ -135,6 +136,27 @@ export async function markAllNotificationsRead(recipientId: string) {
     `update notifications set read_at = now() where recipient_id = $1 and read_at is null`,
     [recipientId]
   );
+}
+
+export async function fanoutWishlistReleases(): Promise<{ created: number }> {
+  await ensureNotificationsSchema();
+  const sql = createSqlClient();
+  const rows = (await sql.query(
+    `insert into notifications (recipient_id, actor_id, type, game_id)
+     select ugs.user_id, null, 'game_released', ugs.game_id
+       from user_game_statuses ugs
+       join games g on g.id = ugs.game_id
+      where ugs.status = 'want_to_play'
+        and g.status = 'released'
+        and not exists (
+          select 1 from notifications n
+           where n.recipient_id = ugs.user_id
+             and n.type = 'game_released'
+             and n.game_id = ugs.game_id
+        )
+     returning id`
+  )) as Array<{ id: string }>;
+  return { created: rows.length };
 }
 
 function notificationFromRow(row: NotificationRow): Notification {

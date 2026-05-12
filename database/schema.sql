@@ -280,7 +280,7 @@ create table if not exists notifications (
   id uuid primary key default gen_random_uuid(),
   recipient_id uuid references profiles(id) on delete cascade not null,
   actor_id uuid references profiles(id) on delete cascade,
-  type text check (type in ('follow', 'review_helpful', 'list_like', 'list_collaborator', 'list_comment')) not null,
+  type text check (type in ('follow', 'review_helpful', 'list_like', 'list_collaborator', 'list_comment', 'game_released')) not null,
   list_id uuid references lists(id) on delete cascade,
   review_id uuid references reviews(id) on delete cascade,
   game_id uuid references games(id) on delete cascade,

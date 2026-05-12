@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 type Notification = {
   id: string;
-  type: "follow" | "review_helpful" | "list_like" | "list_collaborator";
+  type: "follow" | "review_helpful" | "list_like" | "list_collaborator" | "game_released";
   readAt: string | null;
   createdAt: string;
   actor: { username: string; displayName: string; avatarUrl: string | null } | null;
@@ -162,7 +162,7 @@ function NotificationItem({
 
   const content = (
     <div className="flex items-start gap-3 px-4 py-3 motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/[0.04]">
-      <Avatar actor={notification.actor} />
+      <Avatar notification={notification} />
       <div className="min-w-0 flex-1">
         <p className="text-[13px] leading-snug text-foreground">{label}</p>
         <p className="mt-1 text-[11px] text-muted">{formatRelative(notification.createdAt)}</p>
@@ -185,7 +185,25 @@ function NotificationItem({
   return <li>{content}</li>;
 }
 
-function Avatar({ actor }: { actor: Notification["actor"] }) {
+function Avatar({ notification }: { notification: Notification }) {
+  if (notification.type === "game_released") {
+    return (
+      <span
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
+        style={{ background: "linear-gradient(135deg, #10B981, #3B82F6)" }}
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+          <path d="M6 9V2h12v7" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 22h16" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="3" y="9" width="18" height="13" rx="2" />
+          <path d="M9 13h6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    );
+  }
+
+  const actor = notification.actor;
   const initial = (actor?.displayName ?? actor?.username ?? "?").trim().charAt(0).toUpperCase() || "?";
   if (actor?.avatarUrl) {
     return (
@@ -248,6 +266,17 @@ function describeNotification(notification: Notification): { href: string | null
             <strong className="font-semibold">{actorName}</strong> te ha añadido como colaborador
             {notification.list?.title ? <> en «{notification.list.title}»</> : null}.
           </>
+        )
+      };
+    case "game_released":
+      return {
+        href: notification.game ? `/games/${notification.game.slug}` : null,
+        label: notification.game ? (
+          <>
+            <strong className="font-semibold">{notification.game.title}</strong> ya está disponible. ¡Estaba en tu lista de deseados!
+          </>
+        ) : (
+          "Un juego de tu lista de deseados ya está disponible."
         )
       };
     default:

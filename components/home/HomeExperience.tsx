@@ -1267,7 +1267,7 @@ function DragCarousel({ children }: { children: ReactNode }) {
   return (
     <div
       ref={ref}
-      className="flex select-none gap-5 overflow-x-auto overflow-y-hidden pb-4"
+      className="flex select-none gap-5 overflow-x-auto overflow-y-hidden px-1 pb-16 pt-2"
       onPointerDown={onPointerDown}
       onPointerLeave={onPointerUp}
       onPointerMove={onPointerMove}

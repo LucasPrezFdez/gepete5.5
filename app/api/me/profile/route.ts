@@ -4,7 +4,7 @@ import { ensureProfile, getUserFromRequest, profileFromRow } from "@/services/co
 
 export const dynamic = "force-dynamic";
 
-const PROFILE_SELECT = "id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres";
+const PROFILE_SELECT = "id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres,featured_game_id";
 const MAX_BIO_LENGTH = 300;
 const MAX_AVATAR_URL_LENGTH = 500;
 const MAX_AVATAR_DATA_BYTES = 750_000;
@@ -28,7 +28,17 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Perfil no encontrado." }, { status: 404 });
 
-  return NextResponse.json({ profile: profileFromRow(data) });
+  const featuredSlug = await resolveFeaturedGameSlug(serviceClient, data.featured_game_id);
+  return NextResponse.json({ profile: profileFromRow(data, featuredSlug) });
+}
+
+async function resolveFeaturedGameSlug(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  gameId: string | null | undefined
+) {
+  if (!gameId) return null;
+  const { data } = await serviceClient.from("games").select("slug").eq("id", gameId).maybeSingle();
+  return data?.slug ?? null;
 }
 
 export async function PATCH(request: Request) {
@@ -101,7 +111,8 @@ export async function PATCH(request: Request) {
 
   if (userError) return NextResponse.json({ error: userError.message }, { status: 500 });
 
-  return NextResponse.json({ profile: profileFromRow(data) });
+  const featuredSlug = await resolveFeaturedGameSlug(serviceClient, data.featured_game_id);
+  return NextResponse.json({ profile: profileFromRow(data, featuredSlug) });
 }
 
 export async function POST(request: Request) {

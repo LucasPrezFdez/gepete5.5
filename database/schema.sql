@@ -219,6 +219,7 @@ alter table profiles add column if not exists onboarding_completed boolean defau
 alter table profiles add column if not exists favorite_platforms text[] default '{}';
 alter table profiles add column if not exists favorite_genres text[] default '{}';
 alter table profiles add column if not exists banner_url text;
+alter table profiles add column if not exists featured_game_id uuid references games(id) on delete set null;
 
 alter table games add column if not exists last_synced_at timestamptz;
 alter table games add column if not exists source_priority text default 'external';

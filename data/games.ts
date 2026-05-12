@@ -45,6 +45,7 @@ export type Profile = {
   updatedAt?: string | null;
   favoritePlatforms: string[];
   favoriteGenres: string[];
+  featuredGameSlug?: string | null;
 };
 
 export type ProfileStats = {

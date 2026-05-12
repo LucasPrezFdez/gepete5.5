@@ -234,7 +234,8 @@ function buildGamesQuery({
     "fields id,name,slug,summary,first_release_date,cover.url,platforms.name,genres.name,involved_companies.developer,involved_companies.publisher,involved_companies.company.name,rating,total_rating,rating_count,total_rating_count,aggregated_rating,game_type.type;",
     // game_type 0 = Main Game. `category` está deprecated en la API actual.
     `where ${whereConditions.join(" & ")};`,
-    getIgdbSortClause(sort),
+    // IGDB rechaza `search` + `sort` (HTTP 406): "Search is sorting on relevancy".
+    normalizedQuery ? "" : getIgdbSortClause(sort),
     includeLimit ? `limit ${pageSize ?? IGDB_PAGE_SIZE};` : "",
     includeLimit ? `offset ${offset ?? 0};` : ""
   ];

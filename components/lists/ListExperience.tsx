@@ -4,12 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Game, GameList } from "@/data/games";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 import { buildAuthRedirectUrl } from "@/hooks/useAuthSession";
+import { cn } from "@/lib/utils";
 
 type Permissions = {
   isOwner: boolean;
@@ -198,42 +198,146 @@ export function ListExperience({ slug, initialList = null }: Props) {
 
   if (!list) return null;
 
+  const heroGame = games[0];
+  const heroImage = heroGame?.heroUrl || heroGame?.coverUrl || null;
+  const avgScore = games.length
+    ? games.reduce((acc, game) => acc + (game.userScore || 0), 0) / games.length
+    : 0;
+  const topGenres = topItems(games.flatMap((game) => game.genres), 4);
+  const ownerInitial = (list.user.displayName || list.user.username || "?").trim().charAt(0).toUpperCase();
+
   return (
     <section className="container-page py-10">
-      <div className="surface-card mb-8 overflow-hidden rounded-3xl">
-        <div className="grid gap-6 p-6 md:grid-cols-[1fr_auto] md:p-8">
-          <div>
-            <Badge tone={list.isPublic ? "violet" : "muted"}>{list.isPublic ? "Lista pública" : "Lista privada"}</Badge>
-            {permissions.isCollaborator && <Badge tone="lime" className="ml-2">Colaborador</Badge>}
-            <h1 className="mt-4 text-4xl font-black">{list.title}</h1>
-            <p className="mt-2 text-sm text-muted">por @{list.user.username} · {list.items.length} juegos</p>
-            {list.description && <p className="mt-3 max-w-2xl text-muted">{list.description}</p>}
-          </div>
-          <div className="flex flex-wrap items-start gap-2 md:justify-end">
-            <Button type="button" onClick={shareList}>Compartir</Button>
-            <Button type="button" variant="secondary" onClick={likeList}>
-              Me gusta ({list.likesCount.toLocaleString("es-ES")})
-            </Button>
-            {permissions.canEditItems && <Button type="button" variant="secondary" onClick={() => setAddOpen(true)}>Añadir juegos</Button>}
-            {permissions.canManage && <Button type="button" variant="secondary" onClick={() => setSettingsOpen(true)}>Configuración</Button>}
+      <div className="relative mb-8 overflow-hidden rounded-3xl border border-white/10 shadow-card">
+        <div className="relative h-[440px] w-full sm:h-[480px]">
+          {heroImage && (
+            <Image
+              src={heroImage}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover"
+            />
+          )}
+          <div
+            className="absolute inset-0"
+            aria-hidden="true"
+            style={{
+              background:
+                "linear-gradient(180deg, rgba(8,10,18,0.55) 0%, rgba(8,10,18,0.65) 40%, rgba(8,10,18,0.95) 100%), linear-gradient(90deg, rgba(8,10,18,0.85) 0%, rgba(8,10,18,0.35) 50%, rgba(8,10,18,0.25) 100%)"
+            }}
+          />
+          <div
+            className="pointer-events-none absolute inset-0 opacity-60"
+            aria-hidden="true"
+            style={{
+              background:
+                "radial-gradient(circle at 12% 30%, rgba(59,130,246,0.25), transparent 50%), radial-gradient(circle at 85% 90%, rgba(139,92,246,0.20), transparent 55%)"
+            }}
+          />
+
+          <div className="relative flex h-full flex-col justify-end p-6 sm:p-10">
+            <div className="max-w-3xl">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold uppercase tracking-[0.25em] text-white/70">
+                <span className="rounded-full bg-white/10 px-3 py-1 backdrop-blur">
+                  {list.isPublic ? "Lista pública" : "Lista privada"}
+                </span>
+                <span className="text-white/40">·</span>
+                <span>{list.items.length} juegos</span>
+                {avgScore > 0 && (
+                  <>
+                    <span className="text-white/40">·</span>
+                    <span className="text-lime">{avgScore.toFixed(1)} ★ nota media</span>
+                  </>
+                )}
+                {permissions.isCollaborator && (
+                  <>
+                    <span className="text-white/40">·</span>
+                    <span className="text-lime">Colaborador</span>
+                  </>
+                )}
+              </div>
+
+              <h1 className="mt-4 text-5xl font-black leading-[0.95] tracking-tight text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)] sm:text-6xl lg:text-7xl">
+                {list.title}
+              </h1>
+
+              {list.description && (
+                <p className="mt-5 max-w-2xl text-base leading-relaxed text-white/80 drop-shadow-md sm:text-lg">
+                  {list.description}
+                </p>
+              )}
+
+              <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-white/85">
+                <div className="flex items-center gap-2.5">
+                  <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-electric to-violet text-xs font-black text-white ring-2 ring-white/20">
+                    {list.user.avatarUrl ? (
+                      <Image src={list.user.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover" />
+                    ) : (
+                      ownerInitial
+                    )}
+                  </div>
+                  <div className="leading-tight">
+                    <p className="font-semibold text-white">{list.user.displayName || list.user.username}</p>
+                    <p className="text-xs text-white/60">@{list.user.username}</p>
+                  </div>
+                </div>
+                <span className="hidden h-8 w-px bg-white/20 sm:block" aria-hidden="true" />
+                <p className="text-white/75">
+                  <span className="font-bold text-lime">{list.likesCount.toLocaleString("es-ES")}</span> me gusta
+                </p>
+                {topGenres.length > 0 && (
+                  <>
+                    <span className="hidden h-8 w-px bg-white/20 sm:block" aria-hidden="true" />
+                    <div className="flex flex-wrap gap-1.5">
+                      {topGenres.slice(0, 3).map((item) => (
+                        <span key={item} className="rounded-full border border-white/20 bg-white/10 px-2.5 py-0.5 text-[11px] font-medium text-white/85 backdrop-blur">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-7 flex flex-wrap items-center gap-2">
+                <Button type="button" onClick={likeList} className="gap-2">
+                  <HeartIcon /> Me gusta
+                </Button>
+                <Button type="button" variant="secondary" onClick={shareList} className="gap-2">
+                  <ShareIcon /> Compartir
+                </Button>
+                {permissions.canEditItems && (
+                  <Button type="button" variant="secondary" onClick={() => setAddOpen(true)} className="gap-2">
+                    <PlusIcon /> Añadir juegos
+                  </Button>
+                )}
+                {permissions.canManage && (
+                  <Button type="button" variant="ghost" onClick={() => setSettingsOpen(true)} className="gap-2 text-white/80 hover:bg-white/10 hover:text-white">
+                    <GearIcon /> Configuración
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {message && <p className="mb-5 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-muted">{message}</p>}
+      {message && <p className="mb-5 rounded-xl border border-lime/30 bg-lime/10 p-3 text-sm text-lime">{message}</p>}
       {error && <p className="mb-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">{error}</p>}
 
-      <div className="mb-5 grid items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_160px_190px_150px_auto]">
-        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filtrar por nombre o texto..." />
+      <div className="sticky top-2 z-20 mb-6 grid items-center gap-3 rounded-2xl border border-white/10 bg-surface/95 p-4 shadow-card backdrop-blur md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_160px_190px_150px_auto]">
+        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en la lista..." />
         <Select value={genre} onChange={setGenre} options={["all", ...genres]} labels={{ all: "Todos los géneros" }} />
         <Select value={platform} onChange={setPlatform} options={["all", ...platforms]} labels={{ all: "Todas las plataformas" }} />
         <Select value={minScore} onChange={setMinScore} options={["all", "7", "8", "9"]} labels={{ all: "Cualquier nota", "7": "7+", "8": "8+", "9": "9+" }} />
-        <div className="flex h-14 items-center gap-2 md:col-span-2 md:justify-end xl:col-span-1">
+        <div className="flex h-11 items-center gap-2 md:col-span-2 md:justify-end xl:col-span-1">
           <Button
             type="button"
             variant={view === "list" ? "primary" : "secondary"}
             onClick={() => setView("list")}
-            className="h-14 w-14 px-0"
+            className="h-11 w-11 px-0"
             aria-label="Ver como lista"
             title="Ver como lista"
           >
@@ -243,7 +347,7 @@ export function ListExperience({ slug, initialList = null }: Props) {
             type="button"
             variant={view === "grid" ? "primary" : "secondary"}
             onClick={() => setView("grid")}
-            className="h-14 w-14 px-0"
+            className="h-11 w-11 px-0"
             aria-label="Ver como grid"
             title="Ver como grid"
           >
@@ -252,10 +356,19 @@ export function ListExperience({ slug, initialList = null }: Props) {
         </div>
       </div>
 
+      <div className="mb-4 flex items-baseline justify-between">
+        <p className="text-sm text-muted">
+          Mostrando <span className="font-bold text-foreground">{filteredGames.length}</span> de {games.length} juegos
+        </p>
+      </div>
+
       {filteredGames.length > 0 ? (
         view === "list" ? <ListRows games={filteredGames} canEdit={permissions.canEditItems} onRemove={removeGame} /> : <CoverGrid games={filteredGames} canEdit={permissions.canEditItems} onRemove={removeGame} />
       ) : (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-muted">No hay juegos que coincidan con los filtros.</div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-sm text-muted">
+          <p className="text-base font-semibold text-foreground">Sin coincidencias</p>
+          <p className="mt-1">Prueba a ajustar los filtros o el término de búsqueda.</p>
+        </div>
       )}
 
       {settingsOpen && accessToken && (
@@ -285,35 +398,45 @@ export function ListExperience({ slug, initialList = null }: Props) {
 
 function ListRows({ games, canEdit, onRemove }: { games: Game[]; canEdit: boolean; onRemove: (slug: string) => void }) {
   return (
-    <div className="space-y-3">
-      {games.map((game) => (
-        <article key={game.slug} className="surface-card grid gap-4 rounded-2xl p-3 sm:grid-cols-[86px_1fr_auto] sm:items-center">
-          <Link href={`/games/${game.slug}`} className="relative aspect-[3/4] w-20 overflow-hidden rounded-xl bg-white/5 sm:w-[86px]">
+    <div className="space-y-2">
+      {games.map((game, index) => (
+        <article
+          key={game.slug}
+          className="group relative grid gap-3 overflow-hidden rounded-xl border border-white/10 bg-surface/85 p-2.5 shadow-card backdrop-blur transition-all duration-200 hover:border-electric/40 hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] sm:grid-cols-[36px_56px_1fr_auto] sm:items-center sm:gap-4"
+        >
+          <div className="absolute inset-y-0 left-0 w-1 origin-left scale-y-0 bg-gradient-to-b from-electric via-violet to-lime transition-transform duration-300 group-hover:scale-y-100" aria-hidden="true" />
+          <RankNumber index={index} />
+          <Link href={`/games/${game.slug}`} className="relative aspect-[3/4] w-14 overflow-hidden rounded-lg bg-white/5">
             {game.coverUrl && (
               <Image
                 src={game.coverUrl}
                 alt={`Cover de ${game.title}`}
                 fill
-                sizes="86px"
-                className="object-cover"
+                sizes="56px"
+                className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
             )}
           </Link>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/games/${game.slug}`} className="text-lg font-black hover:text-electric">{game.title}</Link>
-              <Badge tone="muted">{game.year > 0 ? game.year : "TBA"}</Badge>
+              <Link href={`/games/${game.slug}`} className="text-base font-bold transition-colors group-hover:text-electric">
+                {game.title}
+              </Link>
+              <span className="text-xs font-medium text-muted">{game.year > 0 ? game.year : "TBA"}</span>
             </div>
-            <p className="mt-1 text-sm text-muted">{game.year > 0 ? game.year : "Fecha por anunciar"} · {game.developer} · {game.platforms.slice(0, 3).join(", ")}</p>
-            <p className="mt-2 line-clamp-2 text-sm text-muted">{game.summary}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {game.genres.slice(0, 4).map((item) => <Badge key={item} tone="muted">{item}</Badge>)}
-            </div>
+            <p className="mt-0.5 truncate text-xs text-muted">
+              {game.developer}
+              {game.platforms.length ? ` · ${game.platforms.slice(0, 3).join(", ")}` : ""}
+              {game.genres.length ? ` · ${game.genres.slice(0, 2).join(", ")}` : ""}
+            </p>
           </div>
-          <div className="flex items-center gap-3 sm:flex-col sm:items-end">
+          <div className="flex items-center gap-2 sm:gap-3">
             <RatingBadge score={game.userScore} label="Usuarios" />
-            <span className="text-xs text-muted">{game.ratings.toLocaleString("es-ES")} valoraciones</span>
-            {canEdit && <Button type="button" size="sm" variant="ghost" onClick={() => onRemove(game.slug)}>Quitar</Button>}
+            {canEdit && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => onRemove(game.slug)}>
+                Quitar
+              </Button>
+            )}
           </div>
         </article>
       ))}
@@ -323,26 +446,116 @@ function ListRows({ games, canEdit, onRemove }: { games: Game[]; canEdit: boolea
 
 function CoverGrid({ games, canEdit, onRemove }: { games: Game[]; canEdit: boolean; onRemove: (slug: string) => void }) {
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
-      {games.map((game) => (
-        <article key={game.slug} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-2 transition hover:-translate-y-1 hover:border-electric/45">
-          <Link href={`/games/${game.slug}`} className="block overflow-hidden rounded-xl">
-            <div className="relative aspect-[3/4] bg-white/5">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      {games.map((game, index) => (
+        <article
+          key={game.slug}
+          className="group relative overflow-hidden rounded-2xl border border-white/10 bg-surface/85 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-electric/50 hover:shadow-[0_20px_50px_rgba(59,130,246,0.25)]"
+        >
+          <Link href={`/games/${game.slug}`} className="block">
+            <div className="relative aspect-[3/4] overflow-hidden bg-white/5">
               {game.coverUrl && (
                 <Image
                   src={game.coverUrl}
                   alt={game.title}
                   fill
-                  sizes="(min-width: 1024px) 16vw, (min-width: 768px) 25vw, 50vw"
-                  className="object-cover transition group-hover:scale-105"
+                  sizes="(min-width: 1280px) 16vw, (min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, 50vw"
+                  className="object-cover transition-transform duration-500 group-hover:scale-110"
                 />
               )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" aria-hidden="true" />
+              <div className="absolute left-2 top-2 grid h-8 w-8 place-items-center rounded-lg bg-black/70 text-xs font-black text-white shadow-lg backdrop-blur">
+                #{index + 1}
+              </div>
+              <div className="absolute right-2 top-2">
+                <RatingBadge score={game.userScore} compact />
+              </div>
+              <div className="absolute inset-x-0 bottom-0 p-3">
+                <h3 className="line-clamp-2 text-sm font-black leading-tight text-white drop-shadow-md">{game.title}</h3>
+                <p className="mt-1 text-[11px] font-medium text-white/70">{game.year > 0 ? game.year : "TBA"}{game.platforms[0] ? ` · ${game.platforms[0]}` : ""}</p>
+              </div>
             </div>
           </Link>
-          {canEdit && <button type="button" onClick={() => onRemove(game.slug)} className="absolute right-3 top-3 rounded-full bg-black/70 px-2 py-1 text-xs text-white backdrop-blur">Quitar</button>}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onRemove(game.slug)}
+              className="absolute right-2 bottom-2 rounded-full bg-danger/85 px-2.5 py-1 text-[11px] font-semibold text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100"
+            >
+              Quitar
+            </button>
+          )}
         </article>
       ))}
     </div>
+  );
+}
+
+function RankNumber({ index }: { index: number }) {
+  const rank = index + 1;
+  const isTop3 = rank <= 3;
+  return (
+    <div className="hidden sm:flex sm:items-center sm:justify-center">
+      <span
+        className={cn(
+          "text-2xl font-black tabular-nums leading-none",
+          isTop3
+            ? "bg-gradient-to-br from-lime via-electric to-violet bg-clip-text text-transparent"
+            : "text-white/25"
+        )}
+      >
+        {rank.toString().padStart(2, "0")}
+      </span>
+    </div>
+  );
+}
+
+function topItems(values: string[], limit: number) {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    if (!value) continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, limit)
+    .map(([name]) => name);
+}
+
+function HeartIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 21s-7.5-4.6-9.5-9.2C1 8.4 3 5 6.5 5c2 0 3.5 1.1 4.5 2.5C12 6.1 13.5 5 15.5 5 19 5 21 8.4 21.5 11.8 19.5 16.4 12 21 12 21z" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.6" y1="13.5" x2="15.4" y2="17.5" />
+      <line x1="15.4" y1="6.5" x2="8.6" y2="10.5" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+    </svg>
   );
 }
 

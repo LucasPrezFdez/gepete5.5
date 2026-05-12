@@ -70,18 +70,24 @@ export type IgdbScoreSummary = {
 };
 
 export async function getHomeCollections() {
-  const [trending, upcoming, newReleases, topRated] = await Promise.all([
+  const [trending, upcoming, newReleases, topRated, indieGems, topRpg, bestOfYear] = await Promise.all([
     getGlobalTrendingGames(12),
     getExploreGames({ status: "upcoming", pageSize: 12, sort: "upcoming" }),
     getExploreGames({ pageSize: 12, sort: "recent" }),
-    getExploreGames({ pageSize: 12, sort: "score", scoreMin: 7 })
+    getExploreGames({ pageSize: 12, sort: "score", scoreMin: 7 }),
+    getExploreGames({ genre: "Indie", pageSize: 12, sort: "score", scoreMin: 7 }),
+    getExploreGames({ genre: "Role-playing (RPG)", pageSize: 12, sort: "score", scoreMin: 7 }),
+    getExploreGames({ year: new Date().getFullYear(), status: "released", pageSize: 12, sort: "score", scoreMin: 7 })
   ]);
 
   return {
     trending: trending.slice(0, 6),
     topRated: topRated.games.slice(0, 6),
     upcoming: upcoming.games.slice(0, 6),
-    newReleases: newReleases.games.slice(0, 6)
+    newReleases: newReleases.games.slice(0, 6),
+    indieGems: indieGems.games.slice(0, 6),
+    topRpg: topRpg.games.slice(0, 6),
+    bestOfYear: bestOfYear.games.slice(0, 6)
   };
 }
 

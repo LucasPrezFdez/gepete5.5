@@ -231,14 +231,25 @@ async function ensureDefaultProfileList(
   profile: { id: string; username: string },
   list: (typeof DEFAULT_PROFILE_LISTS)[number]
 ) {
-  const { data: existing, error: existingError } = await serviceClient
+  const { data: matches, error: existingError } = await serviceClient
     .from("lists")
     .select("id, slug")
     .eq("user_id", profile.id)
     .eq("title", list.title)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
 
   if (existingError) throw new Error(existingError.message);
+
+  const existing = (matches ?? [])[0] ?? null;
+  const duplicates = (matches ?? []).slice(1);
+  if (duplicates.length) {
+    const sql = createSqlClient();
+    await sql.query(
+      "delete from lists where id = any($1::uuid[])",
+      [duplicates.map((row: { id: string }) => row.id)]
+    );
+  }
+
   if (existing) {
     const { error } = await serviceClient
       .from("lists")

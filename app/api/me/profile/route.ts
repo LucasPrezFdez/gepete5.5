@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
 const PROFILE_SELECT = "id,username,display_name,bio,avatar_url,created_at,updated_at,favorite_platforms,favorite_genres";
 const MAX_BIO_LENGTH = 300;
 const MAX_AVATAR_URL_LENGTH = 500;
+const MAX_AVATAR_DATA_BYTES = 500_000;
+const ALLOWED_AVATAR_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export async function GET(request: Request) {
   const auth = await getUserFromRequest(request);
@@ -90,6 +92,22 @@ function normalizeNullableText(value: unknown, maxLength: number) {
 function normalizeAvatarUrl(value: unknown) {
   const text = String(value ?? "").trim();
   if (!text) return { value: null, error: null };
+
+  if (text.startsWith("data:")) {
+    const match = /^data:([^;]+);base64,(.+)$/i.exec(text);
+    if (!match) return { value: null, error: "La imagen del avatar no es válida." };
+    const mime = match[1].toLowerCase();
+    if (!ALLOWED_AVATAR_MIME.has(mime)) {
+      return { value: null, error: "El avatar debe ser JPEG, PNG o WebP." };
+    }
+    const base64Length = match[2].length;
+    const approxBytes = Math.floor(base64Length * 0.75);
+    if (approxBytes > MAX_AVATAR_DATA_BYTES) {
+      return { value: null, error: "La imagen pesa más de 500 KB. Súbela más comprimida o más pequeña." };
+    }
+    return { value: text, error: null };
+  }
+
   if (text.length > MAX_AVATAR_URL_LENGTH) return { value: null, error: "La URL del avatar es demasiado larga." };
 
   try {

@@ -26,8 +26,8 @@ export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [username, setUsername] = useState<string | null>(null);
-  const profileHref = username ? `/users/${username}` : "/users/me";
-  const isProfileActive = pathname === profileHref;
+  const profileHref = username ? `/users/${username}` : "/me";
+  const isProfileActive = pathname === profileHref || pathname === "/me" || (username !== null && pathname === `/users/${username}`);
   const isLibraryActive = pathname === "/me/library";
 
   useEffect(() => {

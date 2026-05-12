@@ -14,10 +14,11 @@ const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const DEFAULT_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
 const MAX_MESSAGES = 20;
 const MAX_CHARS_PER_MESSAGE = 4000;
-const MAX_TOOL_ROUNDS = 4;
+const MAX_TOOL_ROUNDS = 3;
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 40;
+const RATE_BUCKET_SWEEP_THRESHOLD = 1000;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 type ChatRole = "user" | "assistant" | "tool" | "system";
@@ -147,6 +148,7 @@ export async function POST(request: Request) {
       try {
         let emptyRetries = 0;
         let disableTools = false;
+        let rescueUsed = false;
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           const decision = await runOneStep(
             apiKey,
@@ -168,6 +170,17 @@ export async function POST(request: Request) {
             return;
           }
           if (decision.kind === "retry-no-tools") {
+            // Tool-call validation failed. Try once to rescue: infer the user's intent from
+            // the last message, invoke search_games ourselves, and inject the result as a
+            // synthetic tool call + tool response so the model can write the final answer.
+            // If rescue was already used (or doesn't apply), fall back to a tools-disabled retry.
+            if (!rescueUsed) {
+              const rescued = await attemptIntentRescue(conversation, send);
+              if (rescued) {
+                rescueUsed = true;
+                continue;
+              }
+            }
             disableTools = true;
             continue;
           }
@@ -501,6 +514,130 @@ function truncate(value: string, max: number) {
   return value.slice(0, max - 1).trimEnd() + "…";
 }
 
+type InferredIntent = {
+  tool: "search_games";
+  args: Record<string, unknown>;
+};
+
+const PLATFORM_KEYWORDS: Array<{ match: RegExp; value: string }> = [
+  { match: /\b(ps5|playstation\s*5)\b/i, value: "PlayStation 5" },
+  { match: /\b(ps4|playstation\s*4)\b/i, value: "PlayStation 4" },
+  { match: /\b(xbox\s*series|series\s*x|series\s*s)\b/i, value: "Xbox Series X|S" },
+  { match: /\b(xbox\s*one)\b/i, value: "Xbox One" },
+  { match: /\b(switch|nintendo)\b/i, value: "Nintendo Switch" },
+  { match: /\b(pc|steam|windows)\b/i, value: "PC (Microsoft Windows)" }
+];
+
+const GENRE_KEYWORDS: Array<{ match: RegExp; value: string }> = [
+  { match: /\brpg\b|rol\b/i, value: "Role-playing (RPG)" },
+  { match: /\bshooter|fps\b/i, value: "Shooter" },
+  { match: /\bestrategia|strategy\b/i, value: "Strategy" },
+  { match: /\bacci[oó]n|action\b/i, value: "Action" },
+  { match: /\baventura|adventure\b/i, value: "Adventure" },
+  { match: /\bplataformas|platformer\b/i, value: "Platform" },
+  { match: /\bcarreras|racing\b/i, value: "Racing" },
+  { match: /\bdeportes|sports\b/i, value: "Sport" },
+  { match: /\bterror|horror\b/i, value: "Horror" },
+  { match: /\bpuzzle\b/i, value: "Puzzle" },
+  { match: /\bindie\b/i, value: "Indie" },
+  { match: /\bsimulador|simulation\b/i, value: "Simulator" }
+];
+
+function inferIntentFromText(text: string): InferredIntent | null {
+  const normalized = text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (!normalized) return null;
+
+  let sort: GameSort | undefined;
+  if (/\b(salen|sale|saldra|saldran|proximo|proxim[oa]s|este mes|esta semana|prox lanzamiento|upcoming|por venir|por salir)\b/.test(normalized)) {
+    sort = "upcoming";
+  } else if (/\b(novedad|novedades|recien salid|recientes|salieron|sali[oó]|nuevo|nuevos)\b/.test(normalized)) {
+    sort = "recent";
+  } else if (/\b(mejor|mejores|top|critica|criticos|highest|valorados|puntuad[oa]s|score)\b/.test(normalized)) {
+    sort = "score";
+  } else if (/\b(popular|populares|trending|jugados)\b/.test(normalized)) {
+    sort = "popular";
+  } else if (/\b(rese[nñ]ad|reseñas|reviews)\b/.test(normalized)) {
+    sort = "reviewed";
+  }
+
+  let platform: string | undefined;
+  for (const { match, value } of PLATFORM_KEYWORDS) {
+    if (match.test(text)) {
+      platform = value;
+      break;
+    }
+  }
+
+  let genre: string | undefined;
+  for (const { match, value } of GENRE_KEYWORDS) {
+    if (match.test(text)) {
+      genre = value;
+      break;
+    }
+  }
+
+  let limit = 8;
+  const numMatch = text.match(/\btop\s*(\d{1,2})\b|\b(\d{1,2})\s*mejores?\b|\b(\d{1,2})\s*juegos\b/i);
+  if (numMatch) {
+    const parsed = Number(numMatch[1] ?? numMatch[2] ?? numMatch[3]);
+    if (Number.isFinite(parsed) && parsed > 0) limit = Math.min(Math.max(parsed, 3), 15);
+  }
+
+  let year: number | undefined;
+  const yearMatch = text.match(/\b(19|20)\d{2}\b/);
+  if (yearMatch) year = Number(yearMatch[0]);
+
+  // If we found nothing strong, only rescue when the message clearly asks about games.
+  const hasGameKeyword = /\b(juego|juegos|game|games|titulo|titulos|saga|lanzamiento)\b/.test(normalized);
+  if (!sort && !platform && !genre && !hasGameKeyword) return null;
+
+  // Default to "score" if intent is "best/top" implied by context but not detected.
+  if (!sort) sort = "popular";
+
+  const args: Record<string, unknown> = { sort, limit };
+  if (platform) args.platform = platform;
+  if (genre) args.genre = genre;
+  if (year) args.year = year;
+
+  return { tool: "search_games", args };
+}
+
+async function attemptIntentRescue(
+  conversation: ChatMessage[],
+  send: (event: { type: string; [k: string]: unknown }) => void
+): Promise<boolean> {
+  const lastUser = [...conversation].reverse().find((m) => m.role === "user");
+  if (!lastUser?.content) return false;
+
+  const intent = inferIntentFromText(lastUser.content);
+  if (!intent) return false;
+
+  log.info("intent rescue", { tool: intent.tool, args: intent.args });
+  send({ type: "tool", name: intent.tool });
+
+  const result = await searchGamesTool(intent.args);
+  const syntheticId = `rescue-${Date.now()}`;
+
+  conversation.push({
+    role: "assistant",
+    content: null,
+    tool_calls: [
+      {
+        id: syntheticId,
+        type: "function",
+        function: { name: intent.tool, arguments: JSON.stringify(intent.args) }
+      }
+    ]
+  });
+  conversation.push({
+    role: "tool",
+    tool_call_id: syntheticId,
+    name: intent.tool,
+    content: JSON.stringify(result)
+  });
+  return true;
+}
+
 function parseMessages(payload: unknown): ChatMessage[] | null {
   if (!payload || typeof payload !== "object") return null;
   const raw = (payload as { messages?: unknown }).messages;
@@ -548,6 +685,11 @@ function getClientIp(request: Request) {
 
 function takeRateToken(key: string) {
   const now = Date.now();
+  if (rateBuckets.size > RATE_BUCKET_SWEEP_THRESHOLD) {
+    for (const [k, b] of rateBuckets) {
+      if (b.resetAt <= now) rateBuckets.delete(k);
+    }
+  }
   const bucket = rateBuckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
     rateBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });

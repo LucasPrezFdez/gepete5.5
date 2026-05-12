@@ -608,7 +608,7 @@ function Hero({
               </h1>
 
               <p className="mt-6 max-w-xl text-base leading-relaxed md:text-lg" style={{ color: theme.muted }}>
-                Descubre videojuegos, consulta fichas completas, compara puntuaciones, crea listas y organiza tu backlog personal.
+                Descubre videojuegos, consulta fichas completas, compara puntuaciones, crea listas y organiza tus pendientes.
               </p>
 
               <div className="mt-8 max-w-2xl">

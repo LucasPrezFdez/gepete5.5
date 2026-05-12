@@ -371,7 +371,7 @@ export function UserProfileHeader({ profile, stats }: Props) {
             <div className="mt-4 flex flex-wrap gap-2">
               <Badge tone="blue">{stats.ratingsCount} valorados</Badge>
               <Badge tone="lime">{stats.completedCount} completados</Badge>
-              <Badge tone="violet">{stats.backlogCount} backlog</Badge>
+              <Badge tone="violet">{stats.backlogCount} pendientes</Badge>
               <Badge tone="muted">{stats.listsCount} listas públicas</Badge>
               <Badge tone="muted">{followers} seguidores</Badge>
             </div>

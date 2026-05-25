@@ -391,7 +391,7 @@ export function HomeExperience({
                 </DragCarousel>
               </Section>
 
-              <Section eyebrow="Ranking vivo" href="/rankings/top-250" title="Mejores valorados">
+              <Section eyebrow="Ranking vivo" href="/rankings/top-50" title="Mejores valorados">
                 <RankingList games={topRated} onOpen={setOpenGame} />
               </Section>
 
@@ -608,7 +608,7 @@ function Hero({
               </h1>
 
               <p className="mt-6 max-w-xl text-base leading-relaxed md:text-lg" style={{ color: theme.muted }}>
-                Descubre videojuegos, consulta fichas completas, compara puntuaciones, crea listas y organiza tu backlog personal.
+                Descubre videojuegos, consulta fichas completas, compara puntuaciones, crea listas y organiza tus pendientes.
               </p>
 
               <div className="mt-8 max-w-2xl">
@@ -1267,7 +1267,7 @@ function DragCarousel({ children }: { children: ReactNode }) {
   return (
     <div
       ref={ref}
-      className="flex select-none gap-5 overflow-x-auto overflow-y-hidden pb-4"
+      className="flex select-none gap-5 overflow-x-auto overflow-y-hidden px-1 pb-16 pt-2"
       onPointerDown={onPointerDown}
       onPointerLeave={onPointerUp}
       onPointerMove={onPointerMove}

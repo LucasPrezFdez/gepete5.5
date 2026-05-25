@@ -34,7 +34,24 @@ export async function GET(request: Request) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const { data: profileRow } = await serviceClient
+    .from("profiles")
+    .select("featured_game_id")
+    .eq("id", auth.user.id)
+    .maybeSingle();
+
+  let featuredGameSlug: string | null = null;
+  if (profileRow?.featured_game_id) {
+    const { data: gameRow } = await serviceClient
+      .from("games")
+      .select("slug")
+      .eq("id", profileRow.featured_game_id)
+      .maybeSingle();
+    featuredGameSlug = gameRow?.slug ?? null;
+  }
+
   return NextResponse.json({
+    featuredGameSlug,
     statuses: (data ?? []).map((item: any) => ({
       status: item.status,
       createdAt: item.created_at,

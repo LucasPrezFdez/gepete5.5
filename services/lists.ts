@@ -29,7 +29,7 @@ export const DEFAULT_PROFILE_LISTS = [
 type DefaultProfileListKey = (typeof DEFAULT_PROFILE_LISTS)[number]["key"];
 
 export const LIST_WITH_ITEMS_SELECT =
-  "*, profiles:user_id(id,username,display_name,bio,avatar_url,created_at,updated_at,favorite_platforms,favorite_genres), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))";
+  "*, profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))";
 
 export type ListPermissions = {
   isOwner: boolean;
@@ -231,14 +231,25 @@ async function ensureDefaultProfileList(
   profile: { id: string; username: string },
   list: (typeof DEFAULT_PROFILE_LISTS)[number]
 ) {
-  const { data: existing, error: existingError } = await serviceClient
+  const { data: matches, error: existingError } = await serviceClient
     .from("lists")
     .select("id, slug")
     .eq("user_id", profile.id)
     .eq("title", list.title)
-    .maybeSingle();
+    .order("created_at", { ascending: true });
 
   if (existingError) throw new Error(existingError.message);
+
+  const existing = (matches ?? [])[0] ?? null;
+  const duplicates = (matches ?? []).slice(1);
+  if (duplicates.length) {
+    const sql = createSqlClient();
+    await sql.query(
+      "delete from lists where id = any($1::uuid[])",
+      [duplicates.map((row: { id: string }) => row.id)]
+    );
+  }
+
   if (existing) {
     const { error } = await serviceClient
       .from("lists")

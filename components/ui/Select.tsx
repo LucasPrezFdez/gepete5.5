@@ -8,7 +8,8 @@ export function Select({
   return (
     <div className={cn("relative", className)}>
       <select
-        className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.06] pl-4 pr-9 text-sm text-foreground transition duration-150 focus:border-electric focus:bg-white/[0.09] focus:outline-none"
+        className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-white/[0.06] pl-4 pr-9 text-sm text-foreground transition duration-150 focus:border-electric focus:bg-white/[0.09] focus:outline-none [&>option]:bg-background [&>option]:text-foreground"
+        style={{ colorScheme: "dark" }}
         {...props}
       >
         {children}

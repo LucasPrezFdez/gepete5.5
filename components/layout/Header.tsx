@@ -6,17 +6,20 @@ import { usePathname } from "next/navigation";
 import type { AuthSession } from "@/services/auth-types";
 import { GameSearchBar } from "@/components/games/GameSearchBar";
 import { Button } from "@/components/ui/Button";
+import { NotificationsBell } from "@/components/notifications/NotificationsBell";
 import { cn } from "@/lib/utils";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 
 const navItems = [
   { href: "/games", label: "Juegos" },
   { href: "/rankings", label: "Rankings" },
-  { href: "/rankings/top-250", label: "Top 250" }
+  { href: "/rankings/top-50", label: "Top 50" },
+  { href: "/users", label: "Usuarios" }
 ];
 
 function isNavActive(pathname: string, href: string) {
   if (href === "/games") return pathname === "/games" || pathname.startsWith("/games/");
+  if (href === "/users") return pathname === "/users";
   return pathname === href;
 }
 
@@ -26,8 +29,8 @@ export function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [username, setUsername] = useState<string | null>(null);
-  const profileHref = username ? `/users/${username}` : "/users/me";
-  const isProfileActive = pathname === profileHref;
+  const profileHref = username ? `/users/${username}` : "/me";
+  const isProfileActive = pathname === profileHref || pathname === "/me" || (username !== null && pathname === `/users/${username}`);
   const isLibraryActive = pathname === "/me/library";
 
   useEffect(() => {
@@ -136,6 +139,7 @@ export function Header() {
         <div className="hidden items-center gap-1.5 md:flex">
           {session ? (
             <>
+              <NotificationsBell session={session} />
               <Button variant={isProfileActive ? "secondary" : "ghost"} size="sm" asChild href={profileHref}>
                 Mi perfil
               </Button>

@@ -149,17 +149,19 @@ export async function recordActivity(
   });
 }
 
-export function profileFromRow(row: any): Profile {
+export function profileFromRow(row: any, featuredGameSlug?: string | null): Profile {
   return {
     id: row.id,
     username: row.username ?? "usuario",
     displayName: row.display_name ?? row.username ?? "Usuario",
     bio: row.bio ?? null,
     avatarUrl: row.avatar_url ?? null,
+    bannerUrl: row.banner_url ?? null,
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
     favoritePlatforms: Array.isArray(row.favorite_platforms) ? row.favorite_platforms.map(String) : [],
-    favoriteGenres: Array.isArray(row.favorite_genres) ? row.favorite_genres.map(String) : []
+    favoriteGenres: Array.isArray(row.favorite_genres) ? row.favorite_genres.map(String) : [],
+    featuredGameSlug: featuredGameSlug ?? null
   };
 }
 

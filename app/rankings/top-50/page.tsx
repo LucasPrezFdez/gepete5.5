@@ -7,15 +7,16 @@ import { formatCompactNumber } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Top 250 videojuegos",
-  description: "Ranking de los 250 mejores videojuegos según la API configurada."
+  title: "Top 50 videojuegos",
+  description: "Ranking de los 50 mejores videojuegos según la API configurada."
 };
 
-const TARGET_COUNT = 250;
+const TARGET_COUNT = 50;
 const PAGE_SIZE = 50;
-const PAGES_TO_FETCH = Math.ceil(TARGET_COUNT / PAGE_SIZE);
+// Fetch extra pages so the Bayesian filter still leaves >= TARGET_COUNT candidates.
+const PAGES_TO_FETCH = 5;
 
-export default async function Top250Page() {
+export default async function Top50Page() {
   const pageResults = await Promise.all(
     Array.from({ length: PAGES_TO_FETCH }, (_, index) =>
       getExploreGames({ pageSize: PAGE_SIZE, page: index + 1, sort: "score" })
@@ -32,11 +33,19 @@ export default async function Top250Page() {
     }
   }
 
-  const HARD_MIN_VOTES = 100;
+  const withScore = merged.filter((game) => game.userScore > 0);
 
-  const eligible = merged.filter(
-    (game) => game.userScore > 0 && game.ratings >= HARD_MIN_VOTES
-  );
+  // Start with a soft minimum and relax it until we have enough candidates to fill TARGET_COUNT.
+  const VOTE_THRESHOLDS = [100, 50, 20, 10, 5, 1, 0];
+  let eligible = withScore;
+  for (const threshold of VOTE_THRESHOLDS) {
+    const filtered = withScore.filter((game) => game.ratings >= threshold);
+    if (filtered.length >= TARGET_COUNT) {
+      eligible = filtered;
+      break;
+    }
+    eligible = filtered;
+  }
 
   const meanScore =
     eligible.reduce((sum, game) => sum + game.userScore, 0) /
@@ -44,7 +53,7 @@ export default async function Top250Page() {
 
   const sortedByVotes = eligible.map((game) => game.ratings).sort((a, b) => a - b);
   const percentileIndex = Math.floor(sortedByVotes.length * 0.8);
-  const minVotes = Math.max(sortedByVotes[percentileIndex] ?? 0, HARD_MIN_VOTES);
+  const minVotes = Math.max(sortedByVotes[percentileIndex] ?? 0, 1);
 
   const bayesianScore = (game: (typeof eligible)[number]) => {
     const v = game.ratings;
@@ -70,8 +79,8 @@ export default async function Top250Page() {
     <section className="container-page space-y-6 py-10">
       <RankingPageHeader
         eyebrow="Ranking principal"
-        title="Los 250 mejores videojuegos"
-        highlightWord="250"
+        title="Los 50 mejores videojuegos"
+        highlightWord="50"
         description="Media bayesiana sobre el catálogo completo con umbral dinámico de votos. El ranking principal de GameIndex."
         accent="electric"
         stats={[

@@ -8,6 +8,7 @@ import {
   type CommunityListSeed
 } from "@/data/community";
 import type { Game } from "@/data/games";
+import { getFallbackListBySlug } from "@/data/fallback-users";
 import { getExploreGames } from "@/services/games";
 import { fetchIgdbGamesForCuratedList, normalizeIgdbGame } from "@/services/igdb";
 import { createServiceDatabaseClient } from "@/services/database";
@@ -21,13 +22,15 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { slug } = await params;
   const list = await getPublicDatabaseList(slug);
   const fallback = communityLists.find((item) => item.slug === slug);
-  const title = list?.title ?? fallback?.title ?? "Lista";
+  const mockList = list || fallback ? null : getFallbackListBySlug(slug);
+  const title = list?.title ?? fallback?.title ?? mockList?.title ?? "Lista";
   const description =
     list?.description ??
     fallback?.description ??
+    mockList?.description ??
     `Lista colaborativa de videojuegos en GameIndex.`;
   const canonical = `/lists/${encodeURIComponent(slug)}`;
-  const cover = list?.coverUrl ?? list?.items?.[0]?.game?.coverUrl ?? null;
+  const cover = list?.coverUrl ?? list?.items?.[0]?.game?.coverUrl ?? mockList?.items?.[0]?.game?.coverUrl ?? null;
 
   return {
     title,
@@ -46,7 +49,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
       description,
       images: cover ? [cover] : undefined
     },
-    robots: list || fallback ? { index: true, follow: true } : { index: false, follow: true }
+    robots: list || fallback || mockList ? { index: true, follow: true } : { index: false, follow: true }
   };
 }
 
@@ -72,6 +75,9 @@ export default async function ListPage({ params }: { params: Params }) {
       createdAt: new Date().toISOString()
     }} />;
   }
+
+  const mockList = getFallbackListBySlug(slug);
+  if (mockList) return <ListExperience slug={slug} initialList={mockList} />;
 
   return <ListExperience slug={slug} initialList={null} />;
 }

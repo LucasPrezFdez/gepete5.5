@@ -2,6 +2,7 @@
 import { createServiceDatabaseClient } from "@/services/database";
 import { ensureProfile, getOptionalUserIdFromRequest, getUserFromRequest } from "@/services/community";
 import { getFollowCounts, getIsFollowing, getProfileRowByUsername } from "@/services/users";
+import { createNotification } from "@/services/notifications";
 
 type Params = Promise<{ username: string }>;
 
@@ -47,11 +48,26 @@ export async function POST(request: Request, { params }: { params: Params }) {
     await ensureProfile(serviceClient, auth.user);
 
     if (enabled) {
+      const { data: existing } = await serviceClient
+        .from("follows")
+        .select("follower_id")
+        .eq("follower_id", auth.user.id)
+        .eq("following_id", profile.id)
+        .maybeSingle();
+
       const { error } = await serviceClient.from("follows").upsert(
         { follower_id: auth.user.id, following_id: profile.id },
         { onConflict: "follower_id,following_id" }
       );
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+      if (!existing) {
+        await createNotification({
+          recipientId: profile.id,
+          actorId: auth.user.id,
+          type: "follow"
+        });
+      }
     } else {
       const { error } = await serviceClient
         .from("follows")

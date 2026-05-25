@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Game, GameList } from "@/data/games";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -270,8 +271,11 @@ export function ListExperience({ slug, initialList = null }: Props) {
               )}
 
               <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-white/85">
-                <div className="flex items-center gap-2.5">
-                  <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-electric to-violet text-xs font-black text-white ring-2 ring-white/20">
+                <Link
+                  href={`/users/${list.user.username}`}
+                  className="group/owner flex items-center gap-2.5 rounded-2xl px-1.5 py-1 transition hover:bg-white/10"
+                >
+                  <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-electric to-violet text-xs font-black text-white ring-2 ring-white/20 transition group-hover/owner:ring-white/40">
                     {list.user.avatarUrl ? (
                       <Image src={list.user.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover" />
                     ) : (
@@ -279,10 +283,10 @@ export function ListExperience({ slug, initialList = null }: Props) {
                     )}
                   </div>
                   <div className="leading-tight">
-                    <p className="font-semibold text-white">{list.user.displayName || list.user.username}</p>
+                    <p className="font-semibold text-white transition group-hover/owner:text-electric">{list.user.displayName || list.user.username}</p>
                     <p className="text-xs text-white/60">@{list.user.username}</p>
                   </div>
-                </div>
+                </Link>
                 <span className="hidden h-8 w-px bg-white/20 sm:block" aria-hidden="true" />
                 <p className="text-white/75">
                   <span className="font-bold text-lime">{list.likesCount.toLocaleString("es-ES")}</span> me gusta
@@ -684,25 +688,58 @@ function AddGamesDialog({ accessToken, list, onClose, onSaved }: { accessToken: 
   const [results, setResults] = useState<Game[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addingSlug, setAddingSlug] = useState<string | null>(null);
+  const [recentlyAdded, setRecentlyAdded] = useState<Set<string>>(new Set());
 
-  async function searchGames(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/games?q=${encodeURIComponent(query)}&pageSize=8`, { cache: "no-store" });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || payload?.error) throw new Error(payload?.error ?? "No se pudo buscar juegos.");
-      setResults(payload.games ?? []);
-    } catch (searchError) {
-      setError(searchError instanceof Error ? searchError.message : "No se pudo buscar juegos.");
-    } finally {
+  const listedSlugs = useMemo(() => new Set(list.items.map((item) => item.game.slug)), [list.items]);
+  const trimmedQuery = query.trim();
+
+  useEffect(() => {
+    if (!trimmedQuery) {
+      setResults([]);
+      setError(null);
       setLoading(false);
+      return;
     }
-  }
+
+    const controller = new AbortController();
+    const handle = window.setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(
+          `/api/games?q=${encodeURIComponent(trimmedQuery)}&pageSize=12`,
+          { cache: "no-store", signal: controller.signal }
+        );
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || payload?.error) throw new Error(payload?.error ?? "No se pudo buscar juegos.");
+        setResults(payload.games ?? []);
+      } catch (searchError) {
+        if (controller.signal.aborted) return;
+        setError(searchError instanceof Error ? searchError.message : "No se pudo buscar juegos.");
+        setResults([]);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 320);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(handle);
+    };
+  }, [trimmedQuery]);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   async function addGame(game: Game) {
     setError(null);
+    setAddingSlug(game.slug);
     try {
       const nextGames = [...list.items.map((item) => item.game).filter((item) => item.slug !== game.slug), game];
       const response = await fetch(`/api/lists/${encodeURIComponent(list.slug)}`, {
@@ -713,33 +750,255 @@ function AddGamesDialog({ accessToken, list, onClose, onSaved }: { accessToken: 
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(payload?.error ?? "No se pudo añadir el juego.");
       if (payload.list) onSaved(payload.list);
+      setRecentlyAdded((prev) => new Set(prev).add(game.slug));
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : "No se pudo añadir el juego.");
+    } finally {
+      setAddingSlug(null);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Añadir juegos">
-      <div className="surface-card max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl p-6 md:p-8">
-        <div className="mb-6 flex items-start justify-between gap-4"><div><p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-electric">Juegos</p><h2 className="text-2xl font-black">Añadir juegos</h2></div><button type="button" className="rounded-xl px-3 py-2 text-sm text-muted hover:bg-white/10 hover:text-foreground" onClick={onClose}>Cerrar</button></div>
-        <form onSubmit={searchGames} className="flex gap-2"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar juego..." /><Button type="submit" disabled={loading}>{loading ? "Buscando..." : "Buscar"}</Button></form>
-        <div className="mt-5 space-y-2">
-          {results.map((game) => (
-            <div key={game.slug} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
-              <div className="relative h-16 w-12 overflow-hidden rounded-xl bg-white/5">
-                {game.coverUrl && (
-                  <Image src={game.coverUrl} alt="" fill sizes="48px" className="object-cover" />
+    <Portal>
+      <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Añadir juegos">
+        <div className="relative my-auto flex w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-surface/95 shadow-card backdrop-blur" style={{ maxHeight: "min(90vh, 760px)" }}>
+          {/* Banner */}
+          <div className="relative h-24 shrink-0 overflow-hidden md:h-28">
+            <div className="absolute inset-0 bg-gradient-to-br from-electric/35 via-violet/30 to-lime/25" />
+            <div className="absolute -left-16 -top-12 h-44 w-44 rounded-full bg-electric/30 blur-3xl" />
+            <div className="absolute -right-12 top-6 h-44 w-44 rounded-full bg-violet/25 blur-3xl" />
+            <div className="absolute bottom-0 right-1/3 h-32 w-32 rounded-full bg-lime/20 blur-3xl" />
+            <div
+              className="absolute inset-0 opacity-[0.06] mix-blend-overlay"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
+                backgroundSize: "32px 32px"
+              }}
+              aria-hidden
+            />
+            <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface/95 to-transparent" />
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/40 text-muted backdrop-blur transition hover:border-white/30 hover:bg-black/60 hover:text-foreground"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <path d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Header + search */}
+          <div className="relative shrink-0 px-6 pb-5 pt-2 md:px-8">
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="h-px w-5 rounded-full bg-electric" aria-hidden />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-electric">Juegos</p>
+                </div>
+                <h2 className="text-2xl font-black md:text-3xl">Añadir juegos</h2>
+                <p className="mt-1 text-sm text-muted">Busca y añádelos a <span className="text-foreground">{list.title}</span>.</p>
+              </div>
+              <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs">
+                <span className="font-mono font-bold tabular-nums text-foreground">{list.items.length}</span>
+                <span className="ml-1 text-muted">en la lista</span>
+              </div>
+            </div>
+
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-4 grid place-items-center text-muted">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="20" y1="20" x2="16.65" y2="16.65" />
+                </svg>
+              </span>
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Busca por título, saga, estudio..."
+                autoFocus
+                className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.06] pl-11 pr-24 text-sm text-foreground placeholder:text-muted transition focus:border-electric/60 focus:bg-white/[0.09] focus:outline-none"
+              />
+              <div className="absolute inset-y-0 right-2 flex items-center gap-1.5">
+                {loading && (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-electric/30 border-t-electric" aria-hidden />
+                )}
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Limpiar búsqueda"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-muted transition hover:bg-white/10 hover:text-foreground"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                      <path d="M6 6l12 12M18 6 6 18" />
+                    </svg>
+                  </button>
                 )}
               </div>
-              <div className="min-w-0 flex-1"><p className="font-semibold">{game.title}</p><p className="text-sm text-muted">{game.year || "TBA"}</p></div>
-              <Button type="button" size="sm" onClick={() => addGame(game)}>Añadir</Button>
             </div>
-          ))}
+
+            {error && (
+              <p className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{error}</p>
+            )}
+          </div>
+
+          {/* Results scroll area */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 md:px-8">
+            {!trimmedQuery && !loading ? (
+              <AddGamesEmpty
+                icon={
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="7" />
+                    <line x1="20" y1="20" x2="16.65" y2="16.65" />
+                  </svg>
+                }
+                title="Empieza a escribir"
+                description="Aparecerán resultados a medida que tecleas."
+              />
+            ) : loading && results.length === 0 ? (
+              <div className="space-y-2.5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                    <div className="h-20 w-14 shrink-0 animate-pulse rounded-xl bg-white/5" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-1/2 animate-pulse rounded bg-white/10" />
+                      <div className="h-3 w-2/3 animate-pulse rounded bg-white/5" />
+                    </div>
+                    <div className="h-9 w-20 animate-pulse rounded-xl bg-white/5" />
+                  </div>
+                ))}
+              </div>
+            ) : results.length === 0 ? (
+              <AddGamesEmpty
+                icon={
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="8" y1="15" x2="16" y2="15" />
+                    <line x1="9" y1="9" x2="9.01" y2="9" />
+                    <line x1="15" y1="9" x2="15.01" y2="9" />
+                  </svg>
+                }
+                title="Sin resultados"
+                description={`No encontramos nada para "${trimmedQuery}". Prueba con otra búsqueda.`}
+              />
+            ) : (
+              <ul className="space-y-2.5">
+                {results.map((game) => {
+                  const alreadyInList = listedSlugs.has(game.slug) || recentlyAdded.has(game.slug);
+                  const isAdding = addingSlug === game.slug;
+                  return (
+                    <li
+                      key={game.slug}
+                      className={cn(
+                        "group flex items-center gap-3 rounded-2xl border bg-white/[0.04] p-2.5 transition",
+                        alreadyInList ? "border-lime/30 bg-lime/[0.04]" : "border-white/10 hover:border-electric/40 hover:bg-white/[0.07]"
+                      )}
+                    >
+                      <Link href={`/games/${game.slug}`} target="_blank" rel="noreferrer" className="relative h-20 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                        {game.coverUrl ? (
+                          <Image src={game.coverUrl} alt="" fill sizes="56px" className="object-cover transition group-hover:scale-105" />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center text-[10px] font-bold text-muted">Sin cover</div>
+                        )}
+                      </Link>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <Link href={`/games/${game.slug}`} target="_blank" rel="noreferrer" className="font-bold transition hover:text-electric">
+                            {game.title}
+                          </Link>
+                          <span className="text-[11px] font-medium text-muted">{game.year > 0 ? game.year : "TBA"}</span>
+                          {game.userScore > 0 && <RatingBadge score={game.userScore} compact />}
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-muted">
+                          {game.developer || "—"}
+                          {game.platforms.length ? ` · ${game.platforms.slice(0, 3).join(", ")}` : ""}
+                          {game.genres.length ? ` · ${game.genres.slice(0, 2).join(", ")}` : ""}
+                        </p>
+                      </div>
+                      {alreadyInList ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-xl border border-lime/40 bg-lime/15 px-3 py-2 text-xs font-bold text-lime">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          En la lista
+                        </span>
+                      ) : (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => addGame(game)}
+                          disabled={isAdding}
+                          className="gap-1.5"
+                        >
+                          {isAdding ? (
+                            <>
+                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden />
+                              Añadiendo
+                            </>
+                          ) : (
+                            <>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                                <path d="M12 5v14M5 12h14" />
+                              </svg>
+                              Añadir
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* Footer sticky */}
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-surface/95 px-6 py-4 backdrop-blur md:px-8">
+            <p className="text-xs text-muted">
+              {recentlyAdded.size > 0 ? (
+                <span className="inline-flex items-center gap-1.5 font-semibold text-lime">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  {recentlyAdded.size} juego{recentlyAdded.size === 1 ? "" : "s"} añadido{recentlyAdded.size === 1 ? "" : "s"}
+                </span>
+              ) : (
+                "Pulsa ESC para cerrar."
+              )}
+            </p>
+            <Button type="button" variant="secondary" onClick={onClose}>
+              {recentlyAdded.size > 0 ? "Hecho" : "Cerrar"}
+            </Button>
+          </div>
         </div>
-        {error && <p className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">{error}</p>}
       </div>
+    </Portal>
+  );
+}
+
+function AddGamesEmpty({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="grid place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-12 text-center">
+      <div className="mb-4 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/5 text-muted">
+        {icon}
+      </div>
+      <p className="text-base font-black">{title}</p>
+      <p className="mx-auto mt-1 max-w-sm text-sm text-muted">{description}</p>
     </div>
   );
+}
+
+function Portal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
 }
 
 function Select({ value, onChange, options, labels }: { value: string; onChange: (value: string) => void; options: string[]; labels?: Record<string, string> }) {

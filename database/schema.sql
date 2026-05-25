@@ -16,6 +16,7 @@ create table profiles (
   display_name text,
   bio text,
   avatar_url text,
+  banner_url text,
   created_at timestamptz default now()
 );
 
@@ -217,6 +218,8 @@ alter table profiles add column if not exists updated_at timestamptz default now
 alter table profiles add column if not exists onboarding_completed boolean default false;
 alter table profiles add column if not exists favorite_platforms text[] default '{}';
 alter table profiles add column if not exists favorite_genres text[] default '{}';
+alter table profiles add column if not exists banner_url text;
+alter table profiles add column if not exists featured_game_id uuid references games(id) on delete set null;
 
 alter table games add column if not exists last_synced_at timestamptz;
 alter table games add column if not exists source_priority text default 'external';
@@ -273,3 +276,18 @@ create index if not exists list_collaborators_user_idx on list_collaborators(use
 create index if not exists user_game_statuses_user_status_idx on user_game_statuses(user_id, status, created_at desc);
 create index if not exists activity_events_user_created_idx on activity_events(user_id, created_at desc);
 create index if not exists activity_events_created_idx on activity_events(created_at desc);
+
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id uuid references profiles(id) on delete cascade not null,
+  actor_id uuid references profiles(id) on delete cascade,
+  type text check (type in ('follow', 'review_helpful', 'list_like', 'list_collaborator', 'list_comment', 'game_released')) not null,
+  list_id uuid references lists(id) on delete cascade,
+  review_id uuid references reviews(id) on delete cascade,
+  game_id uuid references games(id) on delete cascade,
+  read_at timestamptz,
+  created_at timestamptz default now()
+);
+
+create index if not exists notifications_recipient_created_idx on notifications(recipient_id, created_at desc);
+create index if not exists notifications_recipient_unread_idx on notifications(recipient_id, read_at) where read_at is null;

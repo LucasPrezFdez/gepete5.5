@@ -73,7 +73,7 @@ const TABLES = new Set([
 ]);
 
 const TABLE_COLUMNS: Record<string, string[]> = {
-  profiles: ["id", "username", "display_name", "bio", "avatar_url", "created_at", "updated_at", "onboarding_completed", "favorite_platforms", "favorite_genres"],
+  profiles: ["id", "username", "display_name", "bio", "avatar_url", "banner_url", "created_at", "updated_at", "onboarding_completed", "favorite_platforms", "favorite_genres"],
   app_users: ["id", "email", "password_hash", "username", "display_name", "created_at", "updated_at"],
   games: ["id", "slug", "title", "summary", "release_year", "status", "cover_url", "hero_url", "trailer_url", "user_score", "critic_score", "rating_count", "review_count", "popularity_score", "created_at", "updated_at", "last_synced_at", "source_priority"],
   platforms: ["id", "slug", "name"],
@@ -483,7 +483,7 @@ async function hydrateRows(queryFn: ReturnType<typeof neon>, table: string, rows
 async function hydrateProfiles(queryFn: ReturnType<typeof neon>, rows: any[], fk: string, target: string) {
   const ids = unique(rows.map((row) => row[fk]).filter(Boolean));
   if (!ids.length) return;
-  const profiles = await queryFn.query(`select id, username, display_name, bio, avatar_url, created_at, favorite_platforms, favorite_genres from profiles where id = any($1::uuid[])`, [ids]) as any[];
+  const profiles = await queryFn.query(`select id, username, display_name, bio, avatar_url, banner_url, created_at, favorite_platforms, favorite_genres from profiles where id = any($1::uuid[])`, [ids]) as any[];
   const byId = new Map(profiles.map((profile) => [profile.id, profile]));
   rows.forEach((row) => { row[target] = byId.get(row[fk]) ?? null; });
 }

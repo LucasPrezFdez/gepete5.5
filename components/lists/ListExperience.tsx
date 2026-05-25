@@ -278,7 +278,7 @@ export function ListExperience({ slug, initialList = null }: Props) {
                 >
                   <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-electric to-violet text-xs font-black text-white ring-2 ring-white/20 transition group-hover/owner:ring-white/40">
                     {list.user.avatarUrl ? (
-                      <Image src={list.user.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover" />
+                      <Image src={list.user.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover" unoptimized />
                     ) : (
                       ownerInitial
                     )}

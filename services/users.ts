@@ -1,6 +1,6 @@
 import type { ActivityEvent, GameList, Profile, ProfileStats, Review } from "@/data/games";
 import { FALLBACK_USERS, FALLBACK_USERS_BY_USERNAME } from "@/data/fallback-users";
-import { createServiceDatabaseClient } from "@/services/database";
+import { createServiceDatabaseClient, createSqlClient } from "@/services/database";
 import { profileFromRow, reviewFromRow } from "@/services/community";
 import { dedupeListsByTitle, listFromRow, syncDefaultProfileLists } from "@/services/lists";
 
@@ -245,16 +245,53 @@ async function loadRealDirectoryUsers(): Promise<DirectoryUserCard[]> {
   if (error) throw new Error(error.message);
   if (!data?.length) return [];
 
-  return (data as any[]).map((row) => ({
-    profile: profileFromRow(row),
-    stats: {
-      ratingsCount: 0,
-      averageScore: 0,
-      completedCount: 0,
-      followerCount: 0,
-      listsCount: 0
-    }
-  }));
+  const profiles = data as any[];
+  const ids = profiles.map((row) => row.id);
+
+  const sql = createSqlClient();
+  const [ratingsRows, completedRows, listsRows, followersRows] = await Promise.all([
+    sql.query(
+      "select user_id, count(*)::int as n, coalesce(round(avg(score)::numeric, 1), 0) as avg_score from ratings where user_id = any($1::uuid[]) and hidden_at is null group by user_id",
+      [ids]
+    ),
+    sql.query(
+      "select user_id, count(*)::int as n from user_game_statuses where user_id = any($1::uuid[]) and status = 'completed' group by user_id",
+      [ids]
+    ),
+    sql.query(
+      "select user_id, count(*)::int as n from lists where user_id = any($1::uuid[]) and is_public = true and hidden_at is null group by user_id",
+      [ids]
+    ),
+    sql.query(
+      "select following_id, count(*)::int as n from follows where following_id = any($1::uuid[]) group by following_id",
+      [ids]
+    )
+  ]);
+
+  const ratingsBy = new Map<string, { count: number; avg: number }>();
+  for (const row of ratingsRows as any[]) {
+    ratingsBy.set(row.user_id, { count: row.n, avg: Number(row.avg_score) });
+  }
+  const completedBy = new Map<string, number>();
+  for (const row of completedRows as any[]) completedBy.set(row.user_id, row.n);
+  const listsBy = new Map<string, number>();
+  for (const row of listsRows as any[]) listsBy.set(row.user_id, row.n);
+  const followersBy = new Map<string, number>();
+  for (const row of followersRows as any[]) followersBy.set(row.following_id, row.n);
+
+  return profiles.map((row) => {
+    const r = ratingsBy.get(row.id);
+    return {
+      profile: profileFromRow(row),
+      stats: {
+        ratingsCount: r?.count ?? 0,
+        averageScore: r?.avg ?? 0,
+        completedCount: completedBy.get(row.id) ?? 0,
+        followerCount: followersBy.get(row.id) ?? 0,
+        listsCount: listsBy.get(row.id) ?? 0
+      }
+    };
+  });
 }
 
 function filterDirectoryUsers(users: DirectoryUserCard[], query?: string): DirectoryUserCard[] {

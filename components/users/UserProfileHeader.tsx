@@ -352,6 +352,7 @@ export function UserProfileHeader({ profile, stats }: Props) {
                   fill
                   sizes="144px"
                   className="object-cover"
+                  unoptimized
                 />
               ) : (
                 initials(currentProfile.displayName)

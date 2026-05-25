@@ -90,6 +90,7 @@ export function ActivityFeed({ username, limit = 12 }: { username?: string; limi
                 fill
                 sizes="40px"
                 className="object-cover"
+                unoptimized
               />
             ) : (
               <span className="grid h-full w-full place-items-center text-xs font-black">

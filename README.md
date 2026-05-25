@@ -76,14 +76,21 @@ ADMIN_EMAILS=foo@example.com,bar@example.com
 
 Usuarios con `banned_at` activo no pueden iniciar sesión (signin devuelve 403). Los bans se gestionan desde el propio panel.
 
-### Sembrar usuarios mock en Neon
+### Sembrar usuarios y contenido mock en Neon
 
-Los 50 perfiles de [data/fallback-users.ts](data/fallback-users.ts) son contenido de la UI pública (`/users`, `/lists/...`), no cuentas reales. Para que aparezcan también en el panel `/admin/users` y se puedan moderar:
+Los 50 perfiles de [data/fallback-users.ts](data/fallback-users.ts) son contenido de la UI pública (`/users`, `/lists/...`), no cuentas reales. Para que aparezcan también en el panel `/admin/users` con su contenido completo (listas, reseñas, valoraciones):
 
 ```bash
-node scripts/seed-fallback-users.mjs
+npx tsx scripts/seed-fallback-content.ts
 ```
 
-Genera una cuenta en `app_users` + fila en `profiles` por cada mock. Es idempotente (puedes ejecutarlo varias veces sin duplicar) y los emails se asignan a `@mock.gameindex.local` para que los puedas filtrar fácilmente. El password queda aleatorio: estos usuarios no pueden iniciar sesión.
+El script siembra de forma idempotente:
 
-También hay un botón **Sembrar mocks** en la esquina superior derecha de `/admin/users` que dispara el endpoint `POST /api/admin/seed/fallback-users` con la misma lógica.
+- 50 cuentas en `app_users` + fila en `profiles` (emails `@mock.gameindex.local`, passwords aleatorios — no pueden iniciar sesión).
+- Los juegos referenciados que aún no estén en `games` (los toma de [data/fallback-games.ts](data/fallback-games.ts)).
+- ~110 listas con sus `list_items`.
+- ~100 reseñas y sus `ratings` asociados.
+
+Usa UUIDs derivados (sha256) de los slugs/IDs del mock para que re-ejecutar el script actualice contenido sin duplicar filas.
+
+También hay un botón **Sembrar mocks** en `/admin/users` que dispara el endpoint `POST /api/admin/seed/fallback-users` con la misma lógica desde el panel.

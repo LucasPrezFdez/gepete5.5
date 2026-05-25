@@ -35,6 +35,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
       )
       .eq("game_id", game.id)
       .not("comment_body", "is", null)
+      .is("hidden_at", null)
       .order("updated_at", { ascending: false }),
     userId
       ? serviceClient

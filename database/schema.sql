@@ -291,3 +291,66 @@ create table if not exists notifications (
 
 create index if not exists notifications_recipient_created_idx on notifications(recipient_id, created_at desc);
 create index if not exists notifications_recipient_unread_idx on notifications(recipient_id, read_at) where read_at is null;
+
+-- Admin & moderation
+alter table app_users add column if not exists is_admin boolean not null default false;
+alter table app_users add column if not exists banned_at timestamptz;
+alter table app_users add column if not exists banned_until timestamptz;
+alter table app_users add column if not exists banned_reason text;
+alter table app_users add column if not exists banned_by uuid references app_users(id) on delete set null;
+
+create index if not exists app_users_is_admin_idx on app_users(is_admin) where is_admin = true;
+create index if not exists app_users_banned_idx on app_users(banned_at) where banned_at is not null;
+
+alter table reviews add column if not exists hidden_at timestamptz;
+alter table reviews add column if not exists hidden_reason text;
+alter table reviews add column if not exists hidden_by uuid references app_users(id) on delete set null;
+
+alter table lists add column if not exists hidden_at timestamptz;
+alter table lists add column if not exists hidden_reason text;
+alter table lists add column if not exists hidden_by uuid references app_users(id) on delete set null;
+
+alter table ratings add column if not exists hidden_at timestamptz;
+alter table ratings add column if not exists hidden_reason text;
+alter table ratings add column if not exists hidden_by uuid references app_users(id) on delete set null;
+
+create index if not exists reviews_visible_idx on reviews(game_id, created_at desc) where hidden_at is null;
+create index if not exists lists_visible_idx on lists(user_id, created_at desc) where hidden_at is null;
+
+alter table games add column if not exists is_featured boolean not null default false;
+alter table games add column if not exists featured_rank int;
+alter table games add column if not exists is_hidden boolean not null default false;
+alter table games add column if not exists hidden_reason text;
+
+create index if not exists games_featured_idx on games(featured_rank) where is_featured = true;
+create index if not exists games_visible_popularity_idx on games(popularity_score desc) where is_hidden = false;
+
+create table if not exists content_reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_user_id uuid references app_users(id) on delete set null,
+  target_type text not null check (target_type in ('review','list','profile','comment','game')),
+  target_id uuid not null,
+  reason text not null check (reason in ('spam','harassment','spoiler','offensive','inaccurate','other')),
+  details text,
+  status text not null default 'pending' check (status in ('pending','resolved','dismissed')),
+  resolved_by uuid references app_users(id) on delete set null,
+  resolved_at timestamptz,
+  resolution_note text,
+  created_at timestamptz default now()
+);
+
+create index if not exists content_reports_pending_idx on content_reports(created_at desc) where status = 'pending';
+create index if not exists content_reports_target_idx on content_reports(target_type, target_id);
+
+create table if not exists admin_jobs (
+  id uuid primary key default gen_random_uuid(),
+  type text not null check (type in ('backfill_covers','bulk_resync')),
+  status text not null default 'pending' check (status in ('pending','running','done','error')),
+  progress int default 0,
+  total int,
+  started_by uuid references app_users(id) on delete set null,
+  started_at timestamptz,
+  finished_at timestamptz,
+  error_message text,
+  created_at timestamptz default now()
+);

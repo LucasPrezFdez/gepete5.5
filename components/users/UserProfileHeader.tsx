@@ -8,6 +8,7 @@ import type { Profile, ProfileStats } from "@/data/games";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { ReportButton } from "@/components/feedback/ReportButton";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 import { buildAuthRedirectUrl } from "@/hooks/useAuthSession";
 
@@ -390,6 +391,14 @@ export function UserProfileHeader({ profile, stats }: Props) {
               </Button>
             )}
             <Button type="button" variant="secondary" onClick={shareProfile}>Compartir</Button>
+            {!isOwnProfile && (
+              <ReportButton
+                targetType="profile"
+                targetId={currentProfile.id}
+                authorId={currentProfile.id}
+                variant="secondary"
+              />
+            )}
           </div>
         </div>
 

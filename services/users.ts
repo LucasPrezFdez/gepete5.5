@@ -71,13 +71,20 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
       .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))")
       .eq("user_id", profile.id)
       .eq("is_public", true)
+      .is("hidden_at", null)
       .order("created_at", { ascending: false })
       .limit(6),
-    serviceClient.from("lists").select("id", { count: "exact", head: true }).eq("user_id", profile.id).eq("is_public", true),
+    serviceClient
+      .from("lists")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", profile.id)
+      .eq("is_public", true)
+      .is("hidden_at", null),
     serviceClient
       .from("reviews")
       .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres), games:game_id(slug,title)")
       .eq("user_id", profile.id)
+      .is("hidden_at", null)
       .order("created_at", { ascending: false })
       .limit(6),
     serviceClient

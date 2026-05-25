@@ -38,6 +38,7 @@ export async function GET(request: Request) {
       "*, profiles:user_id(id,username,display_name,bio,avatar_url,created_at), games:game_id(slug,title)",
       { count: "exact" }
     )
+    .is("hidden_at", null)
     .order("created_at", { ascending: false });
 
   if (gameSlug) query = query.eq("games.slug", gameSlug);

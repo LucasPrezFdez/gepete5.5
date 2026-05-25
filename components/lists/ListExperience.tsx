@@ -8,6 +8,7 @@ import type { Game, GameList } from "@/data/games";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
+import { ReportButton } from "@/components/feedback/ReportButton";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 import { buildAuthRedirectUrl } from "@/hooks/useAuthSession";
 import { cn } from "@/lib/utils";
@@ -322,6 +323,13 @@ export function ListExperience({ slug, initialList = null }: Props) {
                     <GearIcon /> Configuración
                   </Button>
                 )}
+                <ReportButton
+                  targetType="list"
+                  targetId={list.id}
+                  authorId={list.user.id}
+                  variant="secondary"
+                  className="text-white/80 hover:text-white"
+                />
               </div>
             </div>
           </div>

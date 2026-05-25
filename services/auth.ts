@@ -1,4 +1,4 @@
-﻿import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { createServiceDatabaseClient, createSqlClient } from "@/services/database";
 import type { AuthSession, AuthUser } from "@/services/auth-types";
 import { slugify } from "@/lib/utils";
@@ -10,6 +10,7 @@ type TokenPayload = {
   email: string;
   username: string;
   displayName: string;
+  isAdmin: boolean;
   exp: number;
 };
 
@@ -19,7 +20,26 @@ type DbUser = {
   password_hash: string;
   username: string;
   display_name: string | null;
+  is_admin: boolean;
+  banned_at: string | null;
+  banned_until: string | null;
+  banned_reason: string | null;
 };
+
+const USER_COLUMNS =
+  "id, email, password_hash, username, display_name, is_admin, banned_at, banned_until, banned_reason";
+
+export class AccountBannedError extends Error {
+  bannedUntil: string | null;
+  reason: string | null;
+  constructor(bannedUntil: string | null, reason: string | null) {
+    const until = bannedUntil ? ` hasta ${new Date(bannedUntil).toLocaleString()}` : "";
+    super(`Tu cuenta ha sido suspendida${until}.${reason ? ` Motivo: ${reason}` : ""}`);
+    this.name = "AccountBannedError";
+    this.bannedUntil = bannedUntil;
+    this.reason = reason;
+  }
+}
 
 export async function registerUser(input: { email: string; password: string; username?: string }) {
   const email = normalizeEmail(input.email);
@@ -36,11 +56,13 @@ export async function registerUser(input: { email: string; password: string; use
   const existing = await sql.query("select id from app_users where email = $1", [email]) as { id: string }[];
   if (existing.length) throw new Error("Ya existe una cuenta con ese email.");
 
+  const isAdmin = isEmailAdmin(email);
+
   const rows = await sql.query(
-    `insert into app_users (email, password_hash, username, display_name)
-     values ($1, $2, $3, $4)
-     returning id, email, password_hash, username, display_name`,
-    [email, passwordHash, username, username]
+    `insert into app_users (email, password_hash, username, display_name, is_admin)
+     values ($1, $2, $3, $4, $5)
+     returning ${USER_COLUMNS}`,
+    [email, passwordHash, username, username, isAdmin]
   ) as DbUser[];
 
   const user = toAuthUser(rows[0]);
@@ -53,7 +75,7 @@ export async function authenticateUser(input: { email: string; password: string 
   const password = String(input.password ?? "");
   const sql = createSqlClient();
   const rows = await sql.query(
-    "select id, email, password_hash, username, display_name from app_users where email = $1 limit 1",
+    `select ${USER_COLUMNS} from app_users where email = $1 limit 1`,
     [email]
   ) as DbUser[];
   const user = rows[0];
@@ -62,7 +84,12 @@ export async function authenticateUser(input: { email: string; password: string 
     throw new Error("Email o contraseña incorrectos.");
   }
 
-  const authUser = toAuthUser(user);
+  if (isBanActive(user)) {
+    throw new AccountBannedError(user.banned_until, user.banned_reason);
+  }
+
+  const synced = await syncAdminFlagOnLogin(user);
+  const authUser = toAuthUser(synced);
   await ensureProfileForAuthUser(authUser);
   return createSession(authUser);
 }
@@ -73,11 +100,46 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
 
   const sql = createSqlClient();
   const rows = await sql.query(
-    "select id, email, password_hash, username, display_name from app_users where id = $1 limit 1",
+    `select ${USER_COLUMNS} from app_users where id = $1 limit 1`,
     [payload.sub]
   ) as DbUser[];
   const user = rows[0];
-  return user ? toAuthUser(user) : null;
+  if (!user) return null;
+  if (isBanActive(user)) return null;
+  return toAuthUser(user);
+}
+
+export function isEmailAdmin(email: string | null | undefined) {
+  if (!email) return false;
+  const normalized = normalizeEmail(email);
+  return getAdminEmailSet().has(normalized);
+}
+
+export function getAdminEmailSet() {
+  const raw = process.env.ADMIN_EMAILS ?? "";
+  const items = raw
+    .split(",")
+    .map((value) => normalizeEmail(value))
+    .filter(Boolean);
+  return new Set(items);
+}
+
+async function syncAdminFlagOnLogin(user: DbUser): Promise<DbUser> {
+  const shouldBeAdmin = isEmailAdmin(user.email);
+  if (user.is_admin === shouldBeAdmin) return user;
+
+  const sql = createSqlClient();
+  const rows = await sql.query(
+    `update app_users set is_admin = $1, updated_at = now() where id = $2 returning ${USER_COLUMNS}`,
+    [shouldBeAdmin, user.id]
+  ) as DbUser[];
+  return rows[0] ?? { ...user, is_admin: shouldBeAdmin };
+}
+
+function isBanActive(user: Pick<DbUser, "banned_at" | "banned_until">) {
+  if (!user.banned_at) return false;
+  if (!user.banned_until) return true;
+  return new Date(user.banned_until).getTime() > Date.now();
 }
 
 function createSession(user: AuthUser): AuthSession {
@@ -93,6 +155,7 @@ function createAccessToken(user: AuthUser) {
     email: user.email,
     username: user.user_metadata.username,
     displayName: user.user_metadata.display_name,
+    isAdmin: user.isAdmin,
     exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS
   };
   const encodedHeader = base64UrlEncode(JSON.stringify({ alg: "HS256", typ: "JWT" }));
@@ -145,6 +208,8 @@ function toAuthUser(user: DbUser): AuthUser {
   return {
     id: user.id,
     email: user.email,
+    isAdmin: Boolean(user.is_admin),
+    bannedUntil: user.banned_until ?? null,
     user_metadata: {
       username: user.username,
       display_name: user.display_name ?? user.username

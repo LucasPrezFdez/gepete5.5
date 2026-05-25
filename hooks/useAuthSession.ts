@@ -8,6 +8,7 @@ export type AuthSessionState = {
   session: AuthSession | null;
   accessToken: string | null;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   isLoading: boolean;
 };
 
@@ -51,6 +52,7 @@ export function useAuthSession(): AuthSessionState {
     session,
     accessToken: session?.access_token ?? null,
     isAuthenticated: Boolean(session?.access_token),
+    isAdmin: Boolean(session?.user?.isAdmin),
     isLoading
   };
 }

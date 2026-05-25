@@ -108,7 +108,10 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(node scripts/_test-parser.mjs)",
+      "Bash(node scripts/backfill-covers.mjs)",
+      "Bash(tee /tmp/backfill.log)"
     ]
   }
 }

@@ -26,19 +26,19 @@ export function ListCard({
       href={`/lists/${slug}`}
       className="surface-card group block overflow-hidden transition hover:-translate-y-1 hover:border-electric/45"
     >
-      <div className="grid h-40 grid-cols-3 gap-2 bg-white/5 p-2">
+      <div className="grid grid-cols-3 gap-2 bg-white/5 p-2">
         {previewGames.length > 0 ? (
           previewGames.map((game, index) => (
             <div
               key={`${game.title}-${index}`}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-background/60 shadow-inner transition duration-300 group-hover:-translate-y-1 group-hover:border-electric/40"
+              className="aspect-[3/4] overflow-hidden rounded-2xl border border-white/10 bg-background/60 shadow-inner transition duration-300 group-hover:-translate-y-1 group-hover:border-electric/40"
               style={{ transitionDelay: `${index * 40}ms` }}
             >
               {game.coverUrl ? (
                 <img
                   src={game.coverUrl}
                   alt={game.title}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover object-top"
                 />
               ) : (
                 <div className="grid h-full place-items-center bg-gradient-to-br from-surface to-background p-3 text-center text-xs font-bold text-muted">
@@ -48,7 +48,7 @@ export function ListCard({
             </div>
           ))
         ) : (
-          <div className="col-span-3 grid place-items-center rounded-2xl border border-dashed border-white/10 bg-background/60 p-4 text-center text-sm text-muted">
+          <div className="col-span-3 grid h-40 place-items-center rounded-2xl border border-dashed border-white/10 bg-background/60 p-4 text-center text-sm text-muted">
             Lista sin juegos todavía
           </div>
         )}

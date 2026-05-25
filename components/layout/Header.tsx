@@ -32,6 +32,8 @@ export function Header() {
   const profileHref = username ? `/users/${username}` : "/me";
   const isProfileActive = pathname === profileHref || pathname === "/me" || (username !== null && pathname === `/users/${username}`);
   const isLibraryActive = pathname === "/me/library";
+  const isAdmin = Boolean(session?.user?.isAdmin);
+  const isAdminActive = pathname === "/admin" || pathname.startsWith("/admin/");
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -140,6 +142,22 @@ export function Header() {
           {session ? (
             <>
               <NotificationsBell session={session} />
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold motion-safe:transition-colors motion-safe:duration-150",
+                    isAdminActive
+                      ? "bg-[#A3E635]/15 text-[#A3E635]"
+                      : "text-[#A3E635] hover:bg-[#A3E635]/10"
+                  )}
+                >
+                  Admin
+                  <span className="rounded bg-[#A3E635] px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-background">
+                    Admin
+                  </span>
+                </Link>
+              )}
               <Button variant={isProfileActive ? "secondary" : "ghost"} size="sm" asChild href={profileHref}>
                 Mi perfil
               </Button>
@@ -231,6 +249,21 @@ export function Header() {
           <div className="grid gap-0.5">
             {session ? (
               <>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className={cn(
+                      "flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold motion-safe:transition-colors motion-safe:duration-150",
+                      isAdminActive ? "bg-[#A3E635]/15 text-[#A3E635]" : "text-[#A3E635] hover:bg-[#A3E635]/10"
+                    )}
+                    onClick={() => setOpen(false)}
+                  >
+                    Admin
+                    <span className="rounded bg-[#A3E635] px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-background">
+                      Admin
+                    </span>
+                  </Link>
+                )}
                 <Link
                   href={profileHref}
                   className={cn(

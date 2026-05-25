@@ -447,7 +447,8 @@ async function getExploreGamesFromDatabase(params: ExploreGamesParams): Promise<
     .select(
       "*, game_platforms(platforms(name)), game_genres(genres(name)), game_companies(role, companies(name))",
       { count: "exact" }
-    );
+    )
+    .eq("is_hidden", false);
 
   if (restrictedIds) query = query.in("id", restrictedIds);
   if (params.query) query = query.ilike("title", `%${params.query}%`);
@@ -556,6 +557,7 @@ async function getGameBySlugFromDatabase(slug: string): Promise<Game | null> {
       .from("games")
       .select("*, game_platforms(platforms(name)), game_genres(genres(name)), game_companies(role, companies(name))")
       .eq("slug", slug)
+      .eq("is_hidden", false)
       .maybeSingle();
 
     if (error || !data) return null;
@@ -994,5 +996,45 @@ function normalizeCompare(value: string) {
   return value.trim().toLowerCase();
 }
 
+export type ResyncResult = {
+  ok: boolean;
+  source: "igdb" | "rawg" | null;
+  error?: string;
+};
+
+export async function forceResyncGameBySlug(slug: string): Promise<ResyncResult> {
+  const trimmed = slug.trim();
+  if (!trimmed) return { ok: false, source: null, error: "Slug vacío." };
+
+  const lookupKeys = await getIgdbLookupKeys(trimmed);
+  for (const key of lookupKeys) {
+    try {
+      const igdbGame = await getIgdbGameById(key);
+      if (igdbGame) {
+        const normalized = normalizeIgdbGame(igdbGame);
+        await persistExternalGame(normalized);
+        return { ok: true, source: "igdb" };
+      }
+    } catch (error) {
+      if (error instanceof IgdbApiError && error.code === "missing-credentials") break;
+    }
+  }
+
+  try {
+    const rawgGame = await getRawgGameById(trimmed);
+    const normalized = normalizeRawgGame(rawgGame);
+    await persistExternalGame(normalized);
+    return { ok: true, source: "rawg" };
+  } catch (error) {
+    if (error instanceof RawgApiError && error.code === "missing-key") {
+      return { ok: false, source: null, error: "No hay credenciales IGDB ni RAWG configuradas." };
+    }
+    return {
+      ok: false,
+      source: null,
+      error: error instanceof Error ? error.message : "No se pudo resincronizar."
+    };
+  }
+}
 
 

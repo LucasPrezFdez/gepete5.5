@@ -18,6 +18,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
     .from("reviews")
     .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,created_at), games:game_id!inner(slug,title)", { count: "exact" })
     .eq("games.slug", slug)
+    .is("hidden_at", null)
     .order("created_at", { ascending: false })
     .range(from, from + pageSize - 1);
 

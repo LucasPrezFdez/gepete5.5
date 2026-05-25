@@ -2,6 +2,7 @@
 import type { Game, Profile, Review, UserGameStatus } from "@/data/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import { getUserFromToken } from "@/services/auth";
+import { jsonError } from "@/lib/api";
 import { slugify } from "@/lib/utils";
 
 export const VALID_LIBRARY_STATUSES: UserGameStatus[] = [
@@ -39,6 +40,36 @@ export async function getOptionalUserIdFromRequest(request: Request) {
   } catch {
     return null;
   }
+}
+
+export async function requireAdminFromRequest(request: Request) {
+  const { user, error } = await getUserFromRequest(request);
+  if (!user) {
+    return { user: null as AuthUser | null, response: jsonError(error ?? "Debes iniciar sesión.", 401) };
+  }
+  if (!user.isAdmin) {
+    return { user: null as AuthUser | null, response: jsonError("Acceso restringido.", 403) };
+  }
+  return { user, response: null as null };
+}
+
+export async function getOptionalAdminFromRequest(request: Request) {
+  const token = getBearerToken(request);
+  if (!token) return null;
+  try {
+    const user = await getUserFromToken(token);
+    return user?.isAdmin ? user : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function requireActiveUserFromRequest(request: Request) {
+  const result = await getUserFromRequest(request);
+  if (!result.user) {
+    return { ...result, response: jsonError(result.error ?? "Debes iniciar sesión.", 401) };
+  }
+  return { ...result, response: null as null };
 }
 
 export async function ensureProfile(serviceClient: ReturnType<typeof createServiceDatabaseClient>, user: AuthUser) {
@@ -101,8 +132,8 @@ export async function ensureGame(serviceClient: ReturnType<typeof createServiceD
 
 export async function recalculateGameStats(serviceClient: ReturnType<typeof createServiceDatabaseClient>, gameId: string) {
   const [ratingsResult, reviewsResult] = await Promise.all([
-    serviceClient.from("ratings").select("score").eq("game_id", gameId),
-    serviceClient.from("reviews").select("id", { count: "exact", head: true }).eq("game_id", gameId)
+    serviceClient.from("ratings").select("score").eq("game_id", gameId).is("hidden_at", null),
+    serviceClient.from("reviews").select("id", { count: "exact", head: true }).eq("game_id", gameId).is("hidden_at", null)
   ]);
 
   if (ratingsResult.error) throw new Error(ratingsResult.error.message);

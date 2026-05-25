@@ -29,6 +29,7 @@ type Filter =
   | { kind: "gte"; column: string; value: unknown }
   | { kind: "ilike"; column: string; value: string }
   | { kind: "in"; column: string; values: unknown[] }
+  | { kind: "is"; column: string; value: null }
   | { kind: "not"; column: string; operator: string; value: unknown };
 
 type Order = { column: string; ascending: boolean; nullsFirst?: boolean };
@@ -75,15 +76,15 @@ const TABLES = new Set([
 const TABLE_COLUMNS: Record<string, string[]> = {
   profiles: ["id", "username", "display_name", "bio", "avatar_url", "banner_url", "created_at", "updated_at", "onboarding_completed", "favorite_platforms", "favorite_genres"],
   app_users: ["id", "email", "password_hash", "username", "display_name", "created_at", "updated_at"],
-  games: ["id", "slug", "title", "summary", "release_year", "status", "cover_url", "hero_url", "trailer_url", "user_score", "critic_score", "rating_count", "review_count", "popularity_score", "created_at", "updated_at", "last_synced_at", "source_priority"],
+  games: ["id", "slug", "title", "summary", "release_year", "status", "cover_url", "hero_url", "trailer_url", "user_score", "critic_score", "rating_count", "review_count", "popularity_score", "created_at", "updated_at", "last_synced_at", "source_priority", "is_featured", "featured_rank", "is_hidden", "hidden_reason"],
   platforms: ["id", "slug", "name"],
   genres: ["id", "slug", "name"],
   companies: ["id", "slug", "name", "logo_url", "country", "founded_year"],
-  reviews: ["id", "game_id", "user_id", "title", "body", "score", "has_spoilers", "helpful_count", "created_at", "updated_at"],
+  reviews: ["id", "game_id", "user_id", "title", "body", "score", "has_spoilers", "helpful_count", "created_at", "updated_at", "hidden_at", "hidden_reason", "hidden_by"],
   review_helpful_votes: ["review_id", "user_id", "created_at"],
-  ratings: ["id", "game_id", "user_id", "score", "comment_body", "created_at", "updated_at"],
+  ratings: ["id", "game_id", "user_id", "score", "comment_body", "created_at", "updated_at", "hidden_at", "hidden_reason", "hidden_by"],
   user_game_statuses: ["id", "game_id", "user_id", "status", "created_at"],
-  lists: ["id", "user_id", "slug", "title", "description", "cover_url", "is_public", "likes_count", "created_at"],
+  lists: ["id", "user_id", "slug", "title", "description", "cover_url", "is_public", "likes_count", "created_at", "hidden_at", "hidden_reason", "hidden_by"],
   list_items: ["id", "list_id", "game_id", "position", "note"],
   list_likes: ["list_id", "user_id", "created_at"],
   saved_lists: ["list_id", "user_id", "created_at"],
@@ -155,6 +156,11 @@ class NeonQueryBuilder<T = any> implements PromiseLike<QueryResult<T[]>> {
 
   not(column: string, operator: string, value: unknown) {
     this.filters.push({ kind: "not", column, operator, value });
+    return this;
+  }
+
+  is(column: string, value: null) {
+    this.filters.push({ kind: "is", column, value });
     return this;
   }
 
@@ -364,10 +370,13 @@ function filterToSql(table: string, filter: Filter, params: unknown[]) {
     });
     return `${column} in (${placeholders.join(", ")})`;
   }
+  if (filter.kind === "is" && filter.value === null) {
+    return `${column} is null`;
+  }
   if (filter.kind === "not" && filter.operator === "is" && filter.value === null) {
     return `${column} is not null`;
   }
-  throw new Error(`Filtro no soportado: ${filter.kind} ${filter.operator ?? ""}`.trim());
+  throw new Error(`Filtro no soportado: ${filter.kind} ${(filter as any).operator ?? ""}`.trim());
 }
 
 function relationFilterToSql(table: string, filter: Filter, params: unknown[]) {

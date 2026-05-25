@@ -1,4 +1,4 @@
-import { authenticateUser } from "@/services/auth";
+import { AccountBannedError, authenticateUser } from "@/services/auth";
 import { jsonError, jsonOk } from "@/lib/api";
 import { parseBody, v } from "@/lib/validation";
 import { checkRateLimit, getRateLimitKey } from "@/lib/rate-limit";
@@ -29,6 +29,10 @@ export async function POST(request: Request) {
     return jsonOk({ session });
   } catch (error) {
     const message = error instanceof Error ? error.message : "No se pudo iniciar sesión.";
+    if (error instanceof AccountBannedError) {
+      log.warn("signin blocked: account banned", { until: error.bannedUntil });
+      return jsonError(message, 403, { bannedUntil: error.bannedUntil });
+    }
     log.warn("signin failed", { reason: message });
     return jsonError(message, 401);
   }

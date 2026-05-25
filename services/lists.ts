@@ -122,7 +122,7 @@ export async function ensureListCollaborationSchema() {
 
 export async function getListPermissions(
   serviceClient: ReturnType<typeof createServiceDatabaseClient>,
-  list: { id: string; user_id?: string; userId?: string; is_public?: boolean; isPublic?: boolean },
+  list: { id: string; user_id?: string; userId?: string; is_public?: boolean; isPublic?: boolean; hidden_at?: string | null; hiddenAt?: string | null },
   viewerId: string | null
 ): Promise<ListPermissions> {
   await ensureListCollaborationSchema();
@@ -130,11 +130,12 @@ export async function getListPermissions(
   const isOwner = Boolean(viewerId && ownerId === viewerId);
   const isCollaborator = Boolean(viewerId && !isOwner && (await isListCollaborator(serviceClient, list.id, viewerId)));
   const isPublic = Boolean(list.is_public ?? list.isPublic);
+  const isHidden = Boolean(list.hidden_at ?? list.hiddenAt);
 
   return {
     isOwner,
     isCollaborator,
-    canView: isPublic || isOwner || isCollaborator,
+    canView: (isPublic && !isHidden) || isOwner || isCollaborator,
     canEditItems: isOwner || isCollaborator,
     canManage: isOwner
   };

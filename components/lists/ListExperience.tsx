@@ -8,6 +8,7 @@ import type { Game, GameList } from "@/data/games";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
+import { ReportButton } from "@/components/feedback/ReportButton";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 import { buildAuthRedirectUrl } from "@/hooks/useAuthSession";
 import { cn } from "@/lib/utils";
@@ -277,7 +278,7 @@ export function ListExperience({ slug, initialList = null }: Props) {
                 >
                   <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-electric to-violet text-xs font-black text-white ring-2 ring-white/20 transition group-hover/owner:ring-white/40">
                     {list.user.avatarUrl ? (
-                      <Image src={list.user.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover" />
+                      <Image src={list.user.avatarUrl} alt="" width={36} height={36} className="h-9 w-9 rounded-full object-cover" unoptimized />
                     ) : (
                       ownerInitial
                     )}
@@ -322,6 +323,13 @@ export function ListExperience({ slug, initialList = null }: Props) {
                     <GearIcon /> Configuración
                   </Button>
                 )}
+                <ReportButton
+                  targetType="list"
+                  targetId={list.id}
+                  authorId={list.user.id}
+                  variant="secondary"
+                  className="text-white/80 hover:text-white"
+                />
               </div>
             </div>
           </div>

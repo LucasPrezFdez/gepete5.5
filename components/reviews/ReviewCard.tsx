@@ -5,6 +5,7 @@ import type { Review } from "@/data/games";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
+import { ReportButton } from "@/components/feedback/ReportButton";
 import { buildAuthRedirectUrl, useAuthSession } from "@/hooks/useAuthSession";
 
 export type ReviewCardProps = Review | {
@@ -86,6 +87,14 @@ export function ReviewCard(props: ReviewCardProps) {
           <span className="rounded-xl border border-white/10 px-3 py-1.5">{helpfulCount} votos útiles</span>
         )}
         {error && <span className="text-danger">{error}</span>}
+        {review.id && (
+          <ReportButton
+            targetType="review"
+            targetId={review.id}
+            authorId={review.userId}
+            className="ml-auto"
+          />
+        )}
       </div>
     </article>
   );
@@ -95,6 +104,7 @@ function normalizeReview(props: ReviewCardProps) {
   if ("helpfulCount" in props) {
     return {
       id: props.id,
+      userId: props.user.id,
       username: props.user.username,
       title: props.title,
       body: props.body,
@@ -108,6 +118,7 @@ function normalizeReview(props: ReviewCardProps) {
 
   return {
     id: "",
+    userId: null as string | null,
     username: props.user,
     title: props.title,
     body: props.body,

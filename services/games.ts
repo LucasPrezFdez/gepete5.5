@@ -1,4 +1,5 @@
 ﻿import type { Game, GameSort, GameStatus } from "@/data/games";
+import { FALLBACK_GAMES } from "@/data/fallback-games";
 import {
   getIgdbGameById,
   getIgdbRichGameDetails,
@@ -53,7 +54,7 @@ const GLOBAL_TRENDING_QUERIES = [
 
 export type ExploreGamesResult = {
   games: Game[];
-  source: "meili" | "neon" | "igdb" | "rawg" | "none";
+  source: "meili" | "neon" | "igdb" | "rawg" | "fallback" | "none";
   count: number;
   page: number;
   pageSize: number;
@@ -208,8 +209,73 @@ export async function getExploreGames(params: ExploreGamesParams = {}): Promise<
     if (externalResult.error) fallbackErrors.push(externalResult.error);
   }
 
+  const fallbackResult = getExploreGamesFromFallback(normalizedParams);
+  if (fallbackResult.games.length > 0) {
+    return fallbackResult;
+  }
+
   const combinedError = fallbackErrors.filter(Boolean).join(" ").trim();
   return emptyApiResult({ query, page, pageSize, error: combinedError || "No se pudieron cargar videojuegos." });
+}
+
+function getExploreGamesFromFallback(params: ExploreGamesParams): ExploreGamesResult {
+  const page = getPositiveInteger(params.page, 1);
+  const pageSize = getPositiveInteger(params.pageSize, IGDB_PAGE_SIZE, 100);
+  const query = params.query?.trim() || undefined;
+  const filtered = filterFallbackGames({ ...params, query });
+  const sorted = sortFallbackGames(filtered, params.sort);
+  const count = sorted.length;
+  const from = (page - 1) * pageSize;
+  const slice = sorted.slice(from, from + pageSize);
+
+  return {
+    games: slice,
+    source: "fallback",
+    count,
+    page,
+    pageSize,
+    nextPage: from + pageSize < count ? page + 1 : null,
+    previousPage: page > 1 ? page - 1 : null,
+    query
+  };
+}
+
+function filterFallbackGames(params: ExploreGamesParams): Game[] {
+  const normalizedQuery = params.query?.toLowerCase().trim();
+  const normalizedPlatform = params.platform?.toLowerCase().trim();
+  const normalizedGenre = params.genre?.toLowerCase().trim();
+  const effectiveStatus = getEffectiveCatalogStatus(params);
+
+  return FALLBACK_GAMES.filter((game) => {
+    if (normalizedQuery && !game.title.toLowerCase().includes(normalizedQuery)) return false;
+    if (normalizedPlatform && !game.platforms.some((value) => value.toLowerCase().includes(normalizedPlatform))) return false;
+    if (normalizedGenre && !game.genres.some((value) => value.toLowerCase().includes(normalizedGenre))) return false;
+    if (params.year && game.year !== params.year) return false;
+    if (effectiveStatus && game.status !== effectiveStatus) return false;
+    if (params.scoreMin && game.userScore < params.scoreMin) return false;
+    return true;
+  });
+}
+
+function sortFallbackGames(games: Game[], sort?: GameSort): Game[] {
+  const copy = [...games];
+  switch (sort) {
+    case "score":
+      copy.sort((a, b) => b.userScore - a.userScore || b.ratings - a.ratings);
+      break;
+    case "recent":
+      copy.sort((a, b) => b.year - a.year || b.ratings - a.ratings);
+      break;
+    case "upcoming":
+      copy.sort((a, b) => a.year - b.year || b.ratings - a.ratings);
+      break;
+    case "reviewed":
+      copy.sort((a, b) => b.reviews - a.reviews || b.ratings - a.ratings);
+      break;
+    default:
+      copy.sort((a, b) => b.ratings - a.ratings || b.userScore - a.userScore);
+  }
+  return copy;
 }
 
 export async function getExploreGamesFromRawg({
@@ -291,8 +357,14 @@ export async function getGameBySlug(slug: string) {
     void bestEffortIndexGames([game]);
     return withCommunityStats(game);
   } catch {
-    return null;
+    return getFallbackGameBySlug(slug);
   }
+}
+
+function getFallbackGameBySlug(slug: string): Game | null {
+  const normalized = slug.trim().toLowerCase();
+  if (!normalized) return null;
+  return FALLBACK_GAMES.find((game) => game.slug.toLowerCase() === normalized) ?? null;
 }
 
 async function getExploreGamesFromExternal(params: ExploreGamesParams): Promise<ExploreGamesResult> {

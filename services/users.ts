@@ -1,7 +1,7 @@
 import type { ActivityEvent, GameList, Profile, ProfileStats, Review } from "@/data/games";
 import { FALLBACK_USERS, FALLBACK_USERS_BY_USERNAME } from "@/data/fallback-users";
 import { createServiceDatabaseClient, createSqlClient } from "@/services/database";
-import { profileFromRow, reviewFromRow } from "@/services/community";
+import { profileFromRow } from "@/services/community";
 import { dedupeListsByTitle, listFromRow, syncDefaultProfileLists } from "@/services/lists";
 
 export type PublicProfileActivity = Omit<ActivityEvent, "user" | "review"> & {
@@ -81,11 +81,12 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
       .eq("is_public", true)
       .is("hidden_at", null),
     serviceClient
-      .from("reviews")
-      .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres), games:game_id(slug,title)")
+      .from("ratings")
+      .select("id,score,comment_body,created_at,updated_at,profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres),games:game_id(slug,title)")
       .eq("user_id", profile.id)
+      .not("comment_body", "is", null)
       .is("hidden_at", null)
-      .order("created_at", { ascending: false })
+      .order("updated_at", { ascending: false })
       .limit(6),
     serviceClient
       .from("activity_events")
@@ -117,7 +118,9 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
       favoriteGenres: mappedProfile.favoriteGenres
     },
     lists: dedupeListsByTitle((lists.data ?? []).map(listFromRow)),
-    reviews: (reviews.data ?? []).map(reviewFromRow),
+    reviews: (reviews.data ?? [])
+      .filter((row: any) => typeof row.comment_body === "string" && row.comment_body.trim().length > 0)
+      .map(ratingRowToReview),
     activity: (activity.data ?? []).map((item: any) => ({
       id: item.id,
       type: item.type,
@@ -126,6 +129,26 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
       game: item.games ?? null,
       list: item.lists ?? null
     }))
+  };
+}
+
+function ratingRowToReview(row: any): Review {
+  const profileRow = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  const gameRow = Array.isArray(row.games) ? row.games[0] : row.games;
+  const gameTitle = gameRow?.title ?? gameRow?.slug ?? "Juego";
+  const updatedAt = row.updated_at ?? row.created_at ?? new Date().toISOString();
+  return {
+    id: row.id,
+    gameSlug: gameRow?.slug ?? "",
+    gameTitle,
+    user: profileFromRow(profileRow ?? { id: row.user_id, username: "usuario" }),
+    title: gameTitle,
+    body: String(row.comment_body ?? "").trim(),
+    score: Number(row.score ?? 0),
+    helpfulCount: 0,
+    hasSpoilers: false,
+    createdAt: row.created_at ?? updatedAt,
+    updatedAt
   };
 }
 

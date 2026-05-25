@@ -8,7 +8,7 @@ import { UserProfileHeader } from "@/components/users/UserProfileHeader";
 import { communityLists } from "@/data/community";
 import type { Profile, ProfileStats } from "@/data/games";
 import { getExploreGames } from "@/services/games";
-import { getProfileRowByUsername, getPublicUserProfile } from "@/services/users";
+import { getProfileRowByUsername, getPublicUserProfile, type PublicProfileActivity } from "@/services/users";
 
 type Params = Promise<{ username: string }>;
 
@@ -70,49 +70,94 @@ export default async function UserPage({ params }: { params: Params }) {
         <ProfilePreferencesBar profile={profile.profile} />
       </div>
 
-      <div>
-        <SectionHeader eyebrow="Timeline" title="Actividad reciente" />
-        {profile.activity.length ? (
-          <ol className="relative space-y-3 border-l border-white/10 pl-5">
-            {profile.activity.map((event) => (
-              <li key={event.id} className="relative">
-                <span className="absolute -left-[26px] top-3 grid h-3 w-3 place-items-center rounded-full bg-electric shadow-[0_0_12px_rgba(59,130,246,0.6)]" aria-hidden />
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm transition hover:border-electric/40 hover:bg-white/[0.07]">
-                  <p className="text-foreground">{event.message}</p>
-                  <p className="mt-1 text-xs text-muted">{formatDate(event.createdAt)}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <EmptyProfileSection title="Sin actividad pública todavía" description="Cuando publique reseñas, cree listas o actualice su biblioteca, aparecerá aquí." />
-        )}
-      </div>
-
-      <div>
-        <SectionHeader eyebrow="Colecciones" title="Listas públicas" />
-        {profile.lists.length ? (
-          <div className="grid gap-4 md:grid-cols-3">
-            {profile.lists.map((list) => (
-              <ListCard key={list.slug} slug={list.slug} title={list.title} description={list.description ?? ""} likes={list.likesCount} games={list.items.map((item) => ({ title: item.game.title, coverUrl: item.game.coverUrl }))} />
-            ))}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-10 min-w-0">
+          <div>
+            <SectionHeader eyebrow="Colecciones" title="Listas públicas" />
+            {profile.lists.length ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {profile.lists.map((list) => (
+                  <ListCard key={list.slug} slug={list.slug} title={list.title} description={list.description ?? ""} likes={list.likesCount} games={list.items.map((item) => ({ title: item.game.title, coverUrl: item.game.coverUrl }))} />
+                ))}
+              </div>
+            ) : (
+              <EmptyProfileSection title="Todavía no hay listas públicas" description="Las listas públicas del usuario se mostrarán en esta sección." />
+            )}
           </div>
-        ) : (
-          <EmptyProfileSection title="Todavía no hay listas públicas" description="Las listas públicas del usuario se mostrarán en esta sección." />
-        )}
-      </div>
 
-      <div>
-        <SectionHeader eyebrow="Críticas" title="Reseñas recientes" />
-        {profile.reviews.length ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {profile.reviews.map((review) => <ReviewCard key={review.id} {...review} />)}
+          <div>
+            <SectionHeader eyebrow="Críticas" title="Reseñas recientes" />
+            {profile.reviews.length ? (
+              <div className="grid gap-4 xl:grid-cols-2">
+                {profile.reviews.map((review) => <ReviewCard key={review.id} {...review} />)}
+              </div>
+            ) : (
+              <EmptyProfileSection title="Todavía no hay reseñas largas" description="Las reseñas extensas publicadas por este perfil aparecerán aquí." />
+            )}
           </div>
-        ) : (
-          <EmptyProfileSection title="Todavía no hay reseñas largas" description="Las reseñas extensas publicadas por este perfil aparecerán aquí." />
-        )}
+        </div>
+
+        <ActivitySidebar activity={profile.activity} />
       </div>
     </section>
+  );
+}
+
+type ActivityType = "rating" | "review" | "list" | "status" | "favorite";
+
+const ACTIVITY_STYLE: Record<ActivityType, { bg: string; text: string; ring: string }> = {
+  status:   { bg: "bg-electric/12", text: "text-electric", ring: "ring-electric/20" },
+  favorite: { bg: "bg-rose-500/12", text: "text-rose-400", ring: "ring-rose-500/20" },
+  list:     { bg: "bg-violet/15",   text: "text-violet",   ring: "ring-violet/25" },
+  rating:   { bg: "bg-lime/12",     text: "text-lime",     ring: "ring-lime/20" },
+  review:   { bg: "bg-amber-500/12",text: "text-amber-400",ring: "ring-amber-500/20" }
+};
+
+function ActivityIcon({ type }: { type: ActivityType }) {
+  const common = { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+  switch (type) {
+    case "favorite":
+      return <svg {...common}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>;
+    case "list":
+      return <svg {...common}><path d="M8 6h12M8 12h12M8 18h12" /><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" /></svg>;
+    case "rating":
+      return <svg {...common}><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 16.5 6.7 19.2l1.1-5.9L3.5 9.2l5.9-.8z" /></svg>;
+    case "review":
+      return <svg {...common}><path d="M21 12a8 8 0 0 1-11.3 7.3L4 21l1.7-5.7A8 8 0 1 1 21 12z" /></svg>;
+    case "status":
+    default:
+      return <svg {...common}><path d="M20 6 9 17l-5-5" /></svg>;
+  }
+}
+
+function ActivitySidebar({ activity }: { activity: PublicProfileActivity[] }) {
+  const items = activity ?? [];
+  return (
+    <aside className="lg:sticky lg:top-24 lg:self-start">
+      <SectionHeader eyebrow="Timeline" title="Actividad reciente" />
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03]">
+        {items.length ? (
+          <ol className="divide-y divide-white/[0.04]">
+            {items.slice(0, 8).map((event) => {
+              const tone = ACTIVITY_STYLE[(event.type as ActivityType) ?? "status"] ?? ACTIVITY_STYLE.status;
+              return (
+                <li key={event.id} className="flex items-start gap-3 px-5 py-3">
+                  <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full ring-1 ${tone.bg} ${tone.text} ${tone.ring}`}>
+                    <ActivityIcon type={(event.type as ActivityType) ?? "status"} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] leading-snug text-foreground">{event.message}</p>
+                    <p className="mt-1 text-[11px] text-muted">{formatRelativeDate(event.createdAt)}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p className="px-5 py-6 text-center text-xs text-muted">Sin actividad pública todavía.</p>
+        )}
+      </div>
+    </aside>
   );
 }
 
@@ -300,4 +345,21 @@ function formatDate(value?: string | null) {
   if (Number.isNaN(date.getTime())) return "Fecha no disponible";
 
   return new Intl.DateTimeFormat("es", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+}
+
+function formatRelativeDate(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.round(diffMs / 60_000);
+  const diffHr = Math.round(diffMs / 3_600_000);
+  const diffDay = Math.round(diffMs / 86_400_000);
+
+  if (diffMin < 1) return "ahora";
+  if (diffMin < 60) return `hace ${diffMin} min`;
+  if (diffHr < 24) return `hace ${diffHr} h`;
+  if (diffDay < 7) return `hace ${diffDay} d`;
+  return new Intl.DateTimeFormat("es", { day: "2-digit", month: "short" }).format(date);
 }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { getGameBySlug, getIgdbScoreSummaryByGameSlug } from "@/services/games";
 import { createServiceDatabaseClient } from "@/services/database";
 import { reviewFromRow } from "@/services/community";
+import { getFallbackReviewsByGameSlug } from "@/data/fallback-users";
 
 type Params = Promise<{ slug: string }>;
 
@@ -67,6 +68,7 @@ export default async function GameReviewsPage({ params }: { params: Params }) {
 }
 
 async function getReviews(slug: string) {
+  const fallbackReviews = getFallbackReviewsByGameSlug(slug);
   try {
     const serviceClient = createServiceDatabaseClient();
     const { data, error } = await serviceClient
@@ -77,9 +79,10 @@ async function getReviews(slug: string) {
       .limit(50);
 
     if (error) throw new Error(error.message);
-    return { reviews: (data ?? []).map(reviewFromRow), error: null };
-  } catch (error) {
-    return { reviews: [], error: error instanceof Error ? error.message : "No se pudieron cargar las reseñas." };
+    const realReviews = (data ?? []).map(reviewFromRow);
+    return { reviews: [...realReviews, ...fallbackReviews], error: null };
+  } catch {
+    return { reviews: fallbackReviews, error: null };
   }
 }
 

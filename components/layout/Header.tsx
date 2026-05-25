@@ -13,11 +13,13 @@ import { createBrowserAuthClient } from "@/services/auth-browser";
 const navItems = [
   { href: "/games", label: "Juegos" },
   { href: "/rankings", label: "Rankings" },
-  { href: "/rankings/top-250", label: "Top 250" }
+  { href: "/rankings/top-250", label: "Top 250" },
+  { href: "/users", label: "Usuarios" }
 ];
 
 function isNavActive(pathname: string, href: string) {
   if (href === "/games") return pathname === "/games" || pathname.startsWith("/games/");
+  if (href === "/users") return pathname === "/users";
   return pathname === href;
 }
 

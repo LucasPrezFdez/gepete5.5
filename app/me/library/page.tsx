@@ -302,10 +302,119 @@ export default function LibraryPage() {
       )}
 
       {!loading && !error && filtered.length > 0 && (
-        view === "grid"
-          ? <GameGrid items={filtered} />
-          : <GameList items={filtered} />
+        activeStatus === "all"
+          ? <GroupedByStatus items={filtered} view={view} />
+          : (view === "grid" ? <GameGrid items={filtered} /> : <GameList items={filtered} />)
       )}
+    </section>
+  );
+}
+
+function GroupedByStatus({ items, view }: { items: LibraryItem[]; view: "grid" | "list" }) {
+  const groups = useMemo(() => {
+    const map = new Map<UserGameStatus, LibraryItem[]>();
+    for (const item of items) {
+      if (!item.game) continue;
+      const arr = map.get(item.status) ?? [];
+      arr.push(item);
+      map.set(item.status, arr);
+    }
+    return STATUS_ORDER
+      .map((status) => ({ status, list: map.get(status) ?? [] }))
+      .filter((group) => group.list.length > 0);
+  }, [items]);
+
+  return (
+    <div className="space-y-10">
+      {groups.map(({ status, list }) => (
+        <StatusSection key={status} status={status} items={list} view={view} />
+      ))}
+    </div>
+  );
+}
+
+const STATUS_SECTION_STYLES: Record<UserGameStatus, { ring: string; glow: string; chip: string; bar: string; accent: string }> = {
+  want_to_play: {
+    ring: "border-electric/25",
+    glow: "from-electric/10 via-transparent to-transparent",
+    chip: "border-electric/40 bg-electric/15 text-blue-200",
+    bar: "from-electric via-electric/60 to-transparent",
+    accent: "text-electric"
+  },
+  playing: {
+    ring: "border-violet/30",
+    glow: "from-violet/15 via-transparent to-transparent",
+    chip: "border-violet/40 bg-violet/15 text-violet-200",
+    bar: "from-violet via-violet/60 to-transparent",
+    accent: "text-violet-200"
+  },
+  completed: {
+    ring: "border-lime/25",
+    glow: "from-lime/10 via-transparent to-transparent",
+    chip: "border-lime/40 bg-lime/15 text-lime",
+    bar: "from-lime via-lime/60 to-transparent",
+    accent: "text-lime"
+  },
+  paused: {
+    ring: "border-amber-400/25",
+    glow: "from-amber-400/10 via-transparent to-transparent",
+    chip: "border-amber-400/40 bg-amber-400/10 text-amber-200",
+    bar: "from-amber-400 via-amber-400/60 to-transparent",
+    accent: "text-amber-300"
+  },
+  dropped: {
+    ring: "border-danger/25",
+    glow: "from-danger/10 via-transparent to-transparent",
+    chip: "border-danger/40 bg-danger/15 text-danger",
+    bar: "from-danger via-danger/60 to-transparent",
+    accent: "text-danger"
+  },
+  favorite: {
+    ring: "border-pink-400/30",
+    glow: "from-pink-500/15 via-transparent to-transparent",
+    chip: "border-pink-400/40 bg-pink-500/15 text-pink-200",
+    bar: "from-pink-400 via-pink-400/60 to-transparent",
+    accent: "text-pink-200"
+  }
+};
+
+function StatusSection({ status, items, view }: { status: UserGameStatus; items: LibraryItem[]; view: "grid" | "list" }) {
+  const meta = STATUS_META[status];
+  const styles = STATUS_SECTION_STYLES[status];
+  return (
+    <section
+      aria-label={meta.label}
+      className={cn(
+        "relative overflow-hidden rounded-3xl border bg-gradient-to-br from-surface/60 via-surface/30 to-transparent p-4 sm:p-5",
+        styles.ring
+      )}
+    >
+      <div
+        aria-hidden="true"
+        className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-70", styles.glow)}
+      />
+      <div className="relative mb-5 flex items-end justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span aria-hidden="true" className={cn("h-8 w-1 rounded-full bg-gradient-to-b", styles.bar)} />
+          <div>
+            <div className={cn(
+              "mb-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.2em] backdrop-blur",
+              styles.chip
+            )}>
+              {meta.icon}
+              <span>{meta.short}</span>
+            </div>
+            <h2 className={cn("text-xl font-black tracking-tight sm:text-2xl", styles.accent)}>{meta.label}</h2>
+          </div>
+        </div>
+        <p className="shrink-0 text-xs font-medium text-muted">
+          <span className="text-base font-black tabular-nums text-foreground">{items.length}</span>{" "}
+          {items.length === 1 ? "juego" : "juegos"}
+        </p>
+      </div>
+      <div className="relative">
+        {view === "grid" ? <GameGrid items={items} /> : <GameList items={items} />}
+      </div>
     </section>
   );
 }

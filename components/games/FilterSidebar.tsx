@@ -16,7 +16,20 @@ const filterGroups = {
   genre: {
     label: "Género",
     icon: GenreIcon,
-    values: ["RPG", "Acción", "Survival Horror", "Open World", "Metroidvania"]
+    values: [
+      { label: "RPG", value: "Role-playing (RPG)" },
+      { label: "Aventura", value: "Adventure" },
+      { label: "Acción", value: "Hack and slash/Beat 'em up" },
+      { label: "Shooter", value: "Shooter" },
+      { label: "Plataformas", value: "Platform" },
+      { label: "Puzzle", value: "Puzzle" },
+      { label: "Estrategia", value: "Strategy" },
+      { label: "Indie", value: "Indie" },
+      { label: "Simulación", value: "Simulator" },
+      { label: "Lucha", value: "Fighting" },
+      { label: "Deportes", value: "Sport" },
+      { label: "Carreras", value: "Racing" }
+    ]
   },
   status: {
     label: "Estado",

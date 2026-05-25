@@ -391,7 +391,7 @@ export function HomeExperience({
                 </DragCarousel>
               </Section>
 
-              <Section eyebrow="Ranking vivo" href="/rankings/top-250" title="Mejores valorados">
+              <Section eyebrow="Ranking vivo" href="/rankings/top-50" title="Mejores valorados">
                 <RankingList games={topRated} onOpen={setOpenGame} />
               </Section>
 

@@ -158,10 +158,10 @@ function RankingsHero({
 
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/rankings/top-250"
+              href="/rankings/top-50"
               className="group inline-flex items-center gap-2 rounded-xl bg-electric px-5 py-3 text-sm font-semibold text-white shadow-glow transition hover:bg-blue-500"
             >
-              Ver Top 250
+              Ver Top 50
               <span className="transition-transform group-hover:translate-x-0.5">
                 →
               </span>
@@ -311,9 +311,9 @@ function TopRankingCard({
 }) {
   return (
     <RankingCard
-      href="/rankings/top-250"
+      href="/rankings/top-50"
       eyebrow="Ranking principal"
-      title="Top 250 videojuegos"
+      title="Top 50 videojuegos"
       description={`Media bayesiana sobre ${formatCompactNumber(totalGames)} juegos. El ranking que sirve de brújula.`}
       accent="electric"
       className="lg:col-span-3 lg:row-span-2"

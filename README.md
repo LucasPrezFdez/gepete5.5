@@ -49,7 +49,7 @@ Si la clave no está configurada, la aplicación mantiene el fallback con datos 
 - `/games/[slug]`
 - `/games/[slug]/reviews`
 - `/rankings`
-- `/rankings/top-250`
+- `/rankings/top-50`
 - `/platforms/[slug]`
 - `/genres/[slug]`
 - `/companies/[slug]`

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { StatCard } from "@/components/admin/StatCard";
 import { HealthBadge } from "@/components/admin/HealthBadge";
+import { ChartCard, HorizontalBarChart, SparkLine } from "@/components/admin/AdminCharts";
 import { loadAdminStats } from "@/services/admin-stats";
 
 export const dynamic = "force-dynamic";
@@ -29,9 +30,17 @@ const REPORT_STATUS_LABEL: Record<string, string> = {
   dismissed: "Descartado"
 };
 
+const CATALOG_SOURCE_LABELS: Record<string, string> = {
+  igdb: "IGDB",
+  rawg: "RAWG",
+  none: "Sin origen externo"
+};
+
 export default async function AdminDashboardPage() {
   const data = await loadAdminStats();
-  const { stats, health, recent } = data;
+  const { stats, health, recent, charts } = data;
+  const userSignupsTotal = charts.userSignups.reduce((sum, point) => sum + point.value, 0);
+  const reviewsTotal = charts.reviewsPerDay.reduce((sum, point) => sum + point.value, 0);
 
   return (
     <>
@@ -80,6 +89,45 @@ export default async function AdminDashboardPage() {
           value={stats.moderation.hiddenContent}
           hint="Reseñas, listas y comentarios"
         />
+      </section>
+
+      <section className="mt-8 grid gap-4 lg:grid-cols-2">
+        <ChartCard
+          title="Altas de usuarios"
+          hint="Últimos 30 días"
+          total={userSignupsTotal.toLocaleString("es-ES")}
+        >
+          <SparkLine data={charts.userSignups} accent="#A3E635" />
+        </ChartCard>
+        <ChartCard
+          title="Reseñas publicadas"
+          hint="Últimos 30 días"
+          total={reviewsTotal.toLocaleString("es-ES")}
+        >
+          <SparkLine data={charts.reviewsPerDay} accent="#60A5FA" />
+        </ChartCard>
+        <ChartCard
+          title="Reportes por motivo"
+          hint="Distribución acumulada"
+          total={charts.reportsByReason.reduce((sum, datum) => sum + datum.value, 0).toLocaleString("es-ES")}
+        >
+          <HorizontalBarChart
+            data={charts.reportsByReason}
+            accent="#FB7185"
+            labelMap={REPORT_REASON_LABEL}
+          />
+        </ChartCard>
+        <ChartCard
+          title="Catálogo por proveedor"
+          hint="Origen de los juegos sincronizados"
+          total={charts.catalogBySource.reduce((sum, datum) => sum + datum.value, 0).toLocaleString("es-ES")}
+        >
+          <HorizontalBarChart
+            data={charts.catalogBySource}
+            accent="#8B5CF6"
+            labelMap={CATALOG_SOURCE_LABELS}
+          />
+        </ChartCard>
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">

@@ -355,6 +355,44 @@ create table if not exists admin_jobs (
   created_at timestamptz default now()
 );
 
+-- Telemetría de llamadas al proveedor LLM (Groq) y cache hits de IA.
+create table if not exists llm_usage_log (
+  id uuid primary key default gen_random_uuid(),
+  scope text not null,
+  outcome text not null check (outcome in ('llm', 'cache_hit', 'fallback', 'error')),
+  user_id uuid references profiles(id) on delete set null,
+  model text,
+  tokens_in int,
+  tokens_out int,
+  latency_ms int,
+  http_status int,
+  error_code text,
+  created_at timestamptz default now()
+);
+
+create index if not exists llm_usage_log_created_idx on llm_usage_log(created_at desc);
+create index if not exists llm_usage_log_scope_created_idx on llm_usage_log(scope, created_at desc);
+create index if not exists llm_usage_log_outcome_idx on llm_usage_log(outcome, created_at desc);
+
+-- Trazabilidad de acciones administrativas (auditoría).
+create table if not exists admin_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid references app_users(id) on delete set null,
+  admin_username text,
+  action text not null,
+  target_type text not null,
+  target_id text,
+  target_label text,
+  metadata jsonb default '{}'::jsonb,
+  ip_address text,
+  created_at timestamptz default now()
+);
+
+create index if not exists admin_audit_log_created_idx on admin_audit_log(created_at desc);
+create index if not exists admin_audit_log_admin_idx on admin_audit_log(admin_id, created_at desc);
+create index if not exists admin_audit_log_action_idx on admin_audit_log(action, created_at desc);
+create index if not exists admin_audit_log_target_idx on admin_audit_log(target_type, target_id);
+
 -- AI-powered recommendations cached per user (24h TTL).
 create table if not exists user_recommendations (
   id uuid primary key default gen_random_uuid(),

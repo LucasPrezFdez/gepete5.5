@@ -15,7 +15,9 @@ const NAV: NavItem[] = [
   { href: "/admin/users", label: "Usuarios", hint: "Gestión de cuentas" },
   { href: "/admin/reports", label: "Moderación", hint: "Cola de reportes" },
   { href: "/admin/games", label: "Catálogo", hint: "Juegos y overrides" },
-  { href: "/admin/cache", label: "Caché", hint: "Estado y resync" }
+  { href: "/admin/cache", label: "Caché", hint: "Estado y resync" },
+  { href: "/admin/ai", label: "IA", hint: "Telemetría Groq" },
+  { href: "/admin/audit", label: "Auditoría", hint: "Acciones admin" }
 ];
 
 type AdminSidebarProps = {

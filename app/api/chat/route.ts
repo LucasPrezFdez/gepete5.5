@@ -3,6 +3,7 @@ import { createLogger } from "@/lib/logger";
 import { getExploreGames, getGameBySlug, getSimilarGames } from "@/services/games";
 import { getOptionalUserIdFromRequest } from "@/services/community";
 import { createServiceDatabaseClient } from "@/services/database";
+import { logLlmCall } from "@/services/llm-metrics";
 import type { Game, GameSort } from "@/data/games";
 
 export const dynamic = "force-dynamic";
@@ -120,7 +121,8 @@ export async function POST(request: Request) {
   if (!incoming) return jsonError("Mensajes inválidos.", 400);
   if (incoming.length === 0) return jsonError("No hay mensajes que procesar.", 400);
 
-  const userContext = await buildUserContext(request);
+  const userId = await getOptionalUserIdFromRequest(request).catch(() => null);
+  const userContext = userId ? await buildUserContext(request, userId) : null;
   const systemPrompt = buildSystemPrompt(userContext);
   const conversation: ChatMessage[] = [{ role: "system", content: systemPrompt }, ...incoming];
 
@@ -154,7 +156,8 @@ export async function POST(request: Request) {
             apiKey,
             conversation,
             send,
-            disableTools || round === MAX_TOOL_ROUNDS - 1
+            disableTools || round === MAX_TOOL_ROUNDS - 1,
+            userId
           );
 
           if (decision.kind === "done") {
@@ -246,7 +249,8 @@ async function runOneStep(
   apiKey: string,
   conversation: ChatMessage[],
   send: (event: { type: string; [k: string]: unknown }) => void,
-  forceNoTools: boolean
+  forceNoTools: boolean,
+  userId: string | null
 ): Promise<StepResult> {
   const requestBody = {
     model: DEFAULT_MODEL,
@@ -255,13 +259,15 @@ async function runOneStep(
     messages: conversation,
     tools: forceNoTools ? undefined : TOOLS,
     tool_choice: forceNoTools ? undefined : "auto",
-    stream: true
+    stream: true,
+    stream_options: { include_usage: true }
   };
   log.debug("groq request", {
     messageCount: conversation.length,
     withTools: !forceNoTools,
     lastRole: conversation[conversation.length - 1]?.role
   });
+  const startedAt = Date.now();
   const response = await fetch(GROQ_URL, {
     method: "POST",
     headers: {
@@ -274,6 +280,15 @@ async function runOneStep(
   if (!response.ok || !response.body) {
     const text = await response.text().catch(() => "");
     log.warn("groq error", { status: response.status, body: text.slice(0, 500) });
+    void logLlmCall({
+      scope: "chat",
+      outcome: "error",
+      userId,
+      model: DEFAULT_MODEL,
+      latencyMs: Date.now() - startedAt,
+      httpStatus: response.status,
+      errorCode: `http_${response.status}`
+    });
     if (response.status === 429) {
       return { kind: "error", message: "El proveedor LLM está saturado. Espera unos segundos." };
     }
@@ -289,6 +304,8 @@ async function runOneStep(
     { id: string; name: string; argumentsText: string }
   >();
   let finishReason: string | null = null;
+  let promptTokens: number | null = null;
+  let completionTokens: number | null = null;
 
   let upstreamError: string | null = null;
   let sawErrorEvent = false;
@@ -337,6 +354,11 @@ async function runOneStep(
         continue;
       }
 
+      if (json.usage && typeof json.usage === "object") {
+        promptTokens = Number(json.usage.prompt_tokens ?? promptTokens ?? 0) || promptTokens;
+        completionTokens = Number(json.usage.completion_tokens ?? completionTokens ?? 0) || completionTokens;
+      }
+
       const choice = json.choices?.[0];
       if (!choice) continue;
       const delta = choice.delta ?? {};
@@ -369,6 +391,18 @@ async function runOneStep(
     textLength: assistantText.length,
     firstToolName: toolCalls[0]?.name,
     upstreamError
+  });
+
+  void logLlmCall({
+    scope: "chat",
+    outcome: upstreamError ? "error" : "llm",
+    userId,
+    model: DEFAULT_MODEL,
+    latencyMs: Date.now() - startedAt,
+    httpStatus: response.status,
+    tokensIn: promptTokens,
+    tokensOut: completionTokens,
+    errorCode: upstreamError ? "upstream-error" : null
   });
 
   if (upstreamError) {
@@ -709,11 +743,8 @@ type UserContext = {
   recentTitles: string[];
 };
 
-async function buildUserContext(request: Request): Promise<UserContext | null> {
+async function buildUserContext(_request: Request, userId: string): Promise<UserContext | null> {
   try {
-    const userId = await getOptionalUserIdFromRequest(request);
-    if (!userId) return null;
-
     const client = createServiceDatabaseClient();
     const [{ data: profile }, { data: library }] = await Promise.all([
       client

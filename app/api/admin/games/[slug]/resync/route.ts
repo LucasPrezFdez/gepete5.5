@@ -3,6 +3,7 @@ import { requireAdminFromRequest } from "@/services/community";
 import { forceResyncGameBySlug } from "@/services/games";
 import { createSqlClient } from "@/services/database";
 import { createLogger } from "@/lib/logger";
+import { logAdminAction } from "@/services/admin-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,15 @@ export async function POST(request: Request, { params }: { params: Params }) {
     )) as Array<{ last_synced_at: string | null }>;
 
     log.info("game resynced", { adminId: auth.user!.id, slug, source: result.source });
+    await logAdminAction({
+      admin: { id: auth.user!.id, username: auth.user!.user_metadata?.username },
+      action: "game.resync",
+      targetType: "game",
+      targetId: slug,
+      targetLabel: slug,
+      metadata: { source: result.source, lastSyncedAt: rows[0]?.last_synced_at ?? null },
+      request
+    });
     return jsonOk({
       ok: true,
       source: result.source,

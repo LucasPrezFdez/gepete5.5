@@ -11,14 +11,18 @@ import {
 import { jsonError, jsonOk, publicCacheHeaders } from "@/lib/api";
 import { parse, v } from "@/lib/validation";
 import { createLogger } from "@/lib/logger";
+import { reviewHtmlToPlainText, sanitizeReviewHtml } from "@/lib/sanitize-review";
 
 export const dynamic = "force-dynamic";
 
 const log = createLogger("api/reviews");
 
+const BODY_MIN_TEXT_LENGTH = 20;
+const BODY_MAX_HTML_LENGTH = 20000;
+
 const reviewSchema = {
   title: v.string({ min: 3, max: 160 }),
-  body: v.string({ min: 20, max: 8000 }),
+  body: v.string({ min: 1, max: BODY_MAX_HTML_LENGTH }),
   score: v.integer({ min: 1, max: 10 }),
   hasSpoilers: v.boolean({ defaultValue: false }),
   gameSlug: v.string({ min: 1, max: 200, optional: true })
@@ -76,6 +80,12 @@ export async function POST(request: Request) {
   const slug = (parsed.value.gameSlug ?? game?.slug ?? "").trim();
   if (!slug) return jsonError("Falta gameSlug.", 400);
 
+  const sanitizedBody = sanitizeReviewHtml(parsed.value.body);
+  const plainBody = reviewHtmlToPlainText(sanitizedBody);
+  if (plainBody.length < BODY_MIN_TEXT_LENGTH) {
+    return jsonError(`La reseña debe tener al menos ${BODY_MIN_TEXT_LENGTH} caracteres.`, 400);
+  }
+
   const serviceClient = createServiceDatabaseClient();
   await ensureProfile(serviceClient, auth.user);
   const dbGame = await ensureGame(serviceClient, slug, game);
@@ -87,7 +97,7 @@ export async function POST(request: Request) {
       game_id: dbGame.id,
       user_id: auth.user.id,
       title: parsed.value.title,
-      body: parsed.value.body,
+      body: sanitizedBody,
       score: parsed.value.score,
       has_spoilers: parsed.value.hasSpoilers,
       updated_at: now

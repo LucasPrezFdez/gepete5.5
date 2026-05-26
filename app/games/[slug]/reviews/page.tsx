@@ -1,9 +1,10 @@
 ﻿import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ReviewForm } from "@/components/reviews/ReviewForm";
+import { ReviewComposer } from "@/components/reviews/ReviewComposer";
 import { ReviewCard } from "@/components/reviews/ReviewCard";
 import { ReviewFilters } from "@/components/reviews/ReviewFilters";
-import { ScoreDistribution } from "@/components/ratings/ScoreDistribution";
+import { CommunityScoreCard } from "@/components/ratings/CommunityScoreCard";
+import { ExternalScoresSidebar } from "@/components/reviews/ExternalScoresSidebar";
 import { SectionHeader } from "@/components/sections/SectionHeader";
 import { Button } from "@/components/ui/Button";
 import { getGameBySlug, getIgdbScoreSummaryByGameSlug } from "@/services/games";
@@ -35,33 +36,55 @@ export default async function GameReviewsPage({ params }: { params: Params }) {
   ]);
 
   return (
-    <section className="container-page py-10">
+    <section className="container-page space-y-8 py-10">
       <SectionHeader eyebrow="Comunidad" title={`Reseñas de ${game.title}`} />
-      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-        <div className="space-y-4">
-          <ScoreDistribution
-            averageScore={igdbScores?.averageScore}
-            ratingsCount={igdbScores?.ratingsCount}
-            criticScore={igdbScores?.criticScore}
-            source={igdbScores?.source ?? "IGDB"}
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-6">
+          <CommunityScoreCard
+            averageScore={game.userScore}
+            ratingsCount={game.ratings}
+            reviewsCount={game.reviews}
           />
-          <Button asChild href={`/games/${game.slug}#community-rating`} className="w-full" variant="secondary">
-            Valorar con comentario corto
+
+          <ReviewComposer game={game} />
+
+          <Button asChild href={`/games/${game.slug}#community-rating`} variant="secondary" className="w-full sm:w-auto">
+            Prefiero solo una nota rápida con comentario corto
           </Button>
-          <ReviewForm game={game} />
-        </div>
-        <div className="space-y-4">
-          <ReviewFilters />
-          {error && <div className="rounded-2xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger">{error}</div>}
-          {!error && reviews.length === 0 && (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm leading-6 text-muted">
-              Todavía no hay reseñas largas. Publica la primera y ayuda a la comunidad a decidir qué jugar.
+
+          <div className="space-y-4 border-t border-white/10 pt-6">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="h-px w-5 rounded-full bg-electric" aria-hidden />
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-electric">Críticas</p>
+                </div>
+                <h3 className="text-xl font-black md:text-2xl">Reseñas de la comunidad</h3>
+              </div>
+              <ReviewFilters />
             </div>
-          )}
-          {reviews.map((review: any) => (
-            <ReviewCard key={review.id} {...review} />
-          ))}
+
+            {error && <div className="rounded-2xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger">{error}</div>}
+            {!error && reviews.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-sm leading-6 text-muted">
+                Todavía no hay reseñas largas. Publica la primera y ayuda a la comunidad a decidir qué jugar.
+              </div>
+            )}
+            <div className="space-y-4">
+              {reviews.map((review: any) => (
+                <ReviewCard key={review.id} {...review} />
+              ))}
+            </div>
+          </div>
         </div>
+
+        <ExternalScoresSidebar
+          averageScore={igdbScores?.averageScore}
+          ratingsCount={igdbScores?.ratingsCount}
+          criticScore={igdbScores?.criticScore}
+          source={igdbScores?.source ?? "IGDB"}
+        />
       </div>
     </section>
   );

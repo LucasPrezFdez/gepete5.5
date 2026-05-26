@@ -11,6 +11,9 @@
     },
     "dependencies": {
         "@neondatabase/serverless": "^1.1.0",
+        "@tiptap/pm": "^3.23.6",
+        "@tiptap/react": "^3.23.6",
+        "@tiptap/starter-kit": "^3.23.6",
         "meilisearch": "^0.46.0",
         "next": "^15.2.4",
         "react": "^19.0.0",

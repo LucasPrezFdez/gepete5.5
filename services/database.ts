@@ -472,7 +472,7 @@ async function hydrateRows(queryFn: ReturnType<typeof neon>, table: string, rows
   if (needs("profiles") && ["ratings", "reviews", "lists"].includes(table)) {
     await hydrateProfiles(queryFn, hydrated, "user_id", "profiles");
   }
-  if (needs("games") && ["reviews", "user_game_statuses", "list_items", "activity_events"].includes(table)) {
+  if (needs("games") && ["reviews", "ratings", "user_game_statuses", "list_items", "activity_events"].includes(table)) {
     await hydrateGames(queryFn, hydrated, "game_id", "games");
   }
   if (table === "lists" && needs("list_items")) {

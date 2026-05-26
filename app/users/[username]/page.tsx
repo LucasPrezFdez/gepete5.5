@@ -88,7 +88,7 @@ export default async function UserPage({ params }: { params: Params }) {
           <div>
             <SectionHeader eyebrow="Críticas" title="Reseñas recientes" />
             {profile.reviews.length ? (
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="gap-4 xl:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
                 {profile.reviews.map((review) => <ReviewCard key={review.id} {...review} />)}
               </div>
             ) : (

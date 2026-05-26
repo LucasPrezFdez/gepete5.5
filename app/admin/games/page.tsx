@@ -132,7 +132,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: S
         <Table>
           <THead>
             <tr>
-              <TH className="w-12"></TH>
+              <TH className="w-20"></TH>
               <TH>Título</TH>
               <TH className="hidden lg:table-cell">Slug</TH>
               <TH className="hidden md:table-cell">Último sync</TH>
@@ -156,12 +156,14 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: S
                       <Image
                         src={game.cover_url}
                         alt=""
-                        width={36}
-                        height={48}
-                        className="h-12 w-9 rounded object-cover"
+                        width={120}
+                        height={160}
+                        quality={90}
+                        sizes="64px"
+                        className="h-20 w-16 rounded-md object-cover shadow-md ring-1 ring-white/[0.08]"
                       />
                     ) : (
-                      <div className="h-12 w-9 rounded bg-white/[0.05]" aria-hidden />
+                      <div className="h-20 w-16 rounded-md bg-white/[0.05]" aria-hidden />
                     )}
                   </TD>
                   <TD>

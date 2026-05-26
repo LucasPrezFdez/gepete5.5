@@ -371,7 +371,11 @@ export function HomeExperience({
           <Marquee
             items={games.slice(0, 6).map((game) => ({
               label: game.title.toUpperCase(),
-              value: game.userScore ? game.userScore.toFixed(1) : "API"
+              value: game.userScore
+                ? game.userScore.toFixed(1)
+                : game.criticScore
+                  ? (game.criticScore / 10).toFixed(1)
+                  : "—"
             }))}
             speed={45}
           />

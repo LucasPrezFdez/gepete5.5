@@ -102,7 +102,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: S
           className="h-10 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-[13px] text-foreground focus:border-electric/50 focus:outline-none focus:ring-2 focus:ring-electric/30"
         >
           {Object.entries(FILTER_LABEL).map(([value, label]) => (
-            <option key={value} value={value}>
+            <option key={value} value={value} className="bg-[#0b0f1a] text-foreground">
               {label}
             </option>
           ))}

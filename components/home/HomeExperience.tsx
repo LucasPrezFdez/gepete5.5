@@ -18,6 +18,7 @@ import type { Game } from "@/data/games";
 import { communityLists as fallbackCommunityLists, type CommunityListGame, type CommunityListSeed } from "@/data/community";
 import { arcadeTheme, type HeadlinePart, type HomeTheme } from "@/lib/theme";
 import { formatCompactNumber, slugify } from "@/lib/utils";
+import { RecommendationsForYou } from "@/components/home/RecommendationsForYou";
 
 type EnhancedGame = Game & { accent: string };
 type PlatformKind = "pc" | "playstation" | "xbox" | "nintendo" | "mobile" | "mac" | "linux" | "generic";
@@ -370,10 +371,16 @@ export function HomeExperience({
           <Marquee
             items={games.slice(0, 6).map((game) => ({
               label: game.title.toUpperCase(),
-              value: game.userScore ? game.userScore.toFixed(1) : "API"
+              value: game.userScore
+                ? game.userScore.toFixed(1)
+                : game.criticScore
+                  ? (game.criticScore / 10).toFixed(1)
+                  : "—"
             }))}
             speed={45}
           />
+
+          {!isSearching && <RecommendationsForYou />}
 
           {isSearching ? (
             <Section eyebrow="Resultados" title={`${filtered.length} juegos encontrados`}>

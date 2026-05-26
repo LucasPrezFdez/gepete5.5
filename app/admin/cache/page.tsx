@@ -65,7 +65,7 @@ export default async function AdminCachePage() {
           <Table>
             <THead>
               <tr>
-                <TH className="w-10"></TH>
+                <TH className="w-20"></TH>
                 <TH>Título</TH>
                 <TH className="hidden md:table-cell">Slug</TH>
                 <TH>Último sync</TH>
@@ -84,9 +84,17 @@ export default async function AdminCachePage() {
                   <TR key={row.slug}>
                     <TD>
                       {row.cover_url ? (
-                        <Image src={row.cover_url} alt="" width={32} height={42} className="h-10 w-8 rounded object-cover" />
+                        <Image
+                          src={row.cover_url}
+                          alt=""
+                          width={120}
+                          height={160}
+                          quality={90}
+                          sizes="64px"
+                          className="h-20 w-16 rounded-md object-cover shadow-md ring-1 ring-white/[0.08]"
+                        />
                       ) : (
-                        <div className="h-10 w-8 rounded bg-white/[0.05]" aria-hidden />
+                        <div className="h-20 w-16 rounded-md bg-white/[0.05]" aria-hidden />
                       )}
                     </TD>
                     <TD className="font-semibold">{row.title}</TD>

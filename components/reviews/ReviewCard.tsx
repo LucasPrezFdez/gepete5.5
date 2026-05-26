@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { Review } from "@/data/games";
 import { Badge } from "@/components/ui/Badge";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
 import { ReportButton } from "@/components/feedback/ReportButton";
 import { buildAuthRedirectUrl, useAuthSession } from "@/hooks/useAuthSession";
+import { plainTextToReviewHtml, sanitizeReviewHtml } from "@/lib/sanitize-review";
 
 export type ReviewCardProps = Review | {
   user: string;
@@ -44,17 +46,42 @@ export function ReviewCard(props: ReviewCardProps) {
     }
   }
 
+  const gameHref = review.gameSlug
+    ? review.id
+      ? `/games/${review.gameSlug}/reviews#review-${review.id}`
+      : `/games/${review.gameSlug}`
+    : null;
+  const showSeparateTitle = review.title && review.title.trim() !== (review.gameTitle ?? "").trim();
+
   return (
-    <article className="surface-card rounded-2xl p-5">
+    <article id={review.id ? `review-${review.id}` : undefined} className="surface-card rounded-2xl p-5 scroll-mt-24">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted">por @{review.username}</p>
-          <h3 className="mt-1 text-lg font-bold">{review.title}</h3>
-          {review.gameTitle && <p className="mt-1 text-xs text-muted">{review.gameTitle}</p>}
+        <div className="min-w-0">
+          {review.gameTitle ? (
+            gameHref ? (
+              <Link
+                href={gameHref}
+                className="inline-flex items-center gap-1.5 text-base font-bold text-foreground transition hover:text-electric"
+              >
+                <span className="truncate">{review.gameTitle}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0 opacity-70">
+                  <path d="M7 17 17 7" />
+                  <path d="M8 7h9v9" />
+                </svg>
+              </Link>
+            ) : (
+              <p className="text-base font-bold">{review.gameTitle}</p>
+            )
+          ) : null}
+          <p className="mt-1 text-xs text-muted">por @{review.username}</p>
+          {showSeparateTitle && <h3 className="mt-2 text-sm font-semibold text-foreground/90">{review.title}</h3>}
         </div>
         <RatingBadge score={review.score} compact />
       </div>
-      <p className="mt-4 whitespace-pre-line text-sm leading-6 text-muted">{review.body}</p>
+      <div
+        className="prose-review mt-4 text-sm leading-6 text-muted"
+        dangerouslySetInnerHTML={{ __html: renderReviewBody(review.body) }}
+      />
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted">
         {review.hasSpoilers && <Badge tone="danger">Spoilers</Badge>}
         {review.id ? (
@@ -128,4 +155,11 @@ function normalizeReview(props: ReviewCardProps) {
     gameTitle: undefined,
     gameSlug: undefined as string | undefined
   };
+}
+
+function renderReviewBody(body: string | null | undefined): string {
+  if (!body) return "";
+  const trimmed = body.trim();
+  const looksLikeHtml = /^<(p|h3|ul|ol|blockquote|strong|em|s|u|code|br)\b/i.test(trimmed);
+  return sanitizeReviewHtml(looksLikeHtml ? trimmed : plainTextToReviewHtml(trimmed));
 }

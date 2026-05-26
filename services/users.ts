@@ -1,7 +1,7 @@
 import type { ActivityEvent, GameList, Profile, ProfileStats, Review } from "@/data/games";
 import { FALLBACK_USERS, FALLBACK_USERS_BY_USERNAME } from "@/data/fallback-users";
 import { createServiceDatabaseClient, createSqlClient } from "@/services/database";
-import { profileFromRow } from "@/services/community";
+import { profileFromRow, reviewFromRow } from "@/services/community";
 import { dedupeListsByTitle, listFromRow, syncDefaultProfileLists } from "@/services/lists";
 
 export type PublicProfileActivity = Omit<ActivityEvent, "user" | "review"> & {
@@ -59,7 +59,8 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
     statuses,
     lists,
     publicListsCount,
-    reviews,
+    ratingComments,
+    realReviews,
     activity,
     followers,
     following
@@ -85,6 +86,13 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
       .select("id,score,comment_body,created_at,updated_at,profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres),games:game_id(slug,title)")
       .eq("user_id", profile.id)
       .not("comment_body", "is", null)
+      .is("hidden_at", null)
+      .order("updated_at", { ascending: false })
+      .limit(6),
+    serviceClient
+      .from("reviews")
+      .select("id,title,body,score,has_spoilers,helpful_count,created_at,updated_at,user_id,profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres),games:game_id(slug,title)")
+      .eq("user_id", profile.id)
       .is("hidden_at", null)
       .order("updated_at", { ascending: false })
       .limit(6),
@@ -118,9 +126,7 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
       favoriteGenres: mappedProfile.favoriteGenres
     },
     lists: dedupeListsByTitle((lists.data ?? []).map(listFromRow)),
-    reviews: (reviews.data ?? [])
-      .filter((row: any) => typeof row.comment_body === "string" && row.comment_body.trim().length > 0)
-      .map(ratingRowToReview),
+    reviews: mergeReviewsAndRatingComments(realReviews.data ?? [], ratingComments.data ?? []),
     activity: (activity.data ?? []).map((item: any) => ({
       id: item.id,
       type: item.type,
@@ -138,7 +144,7 @@ function ratingRowToReview(row: any): Review {
   const gameTitle = gameRow?.title ?? gameRow?.slug ?? "Juego";
   const updatedAt = row.updated_at ?? row.created_at ?? new Date().toISOString();
   return {
-    id: row.id,
+    id: "",
     gameSlug: gameRow?.slug ?? "",
     gameTitle,
     user: profileFromRow(profileRow ?? { id: row.user_id, username: "usuario" }),
@@ -150,6 +156,22 @@ function ratingRowToReview(row: any): Review {
     createdAt: row.created_at ?? updatedAt,
     updatedAt
   };
+}
+
+function mergeReviewsAndRatingComments(reviewRows: any[], ratingRows: any[]): Review[] {
+  const reviews = reviewRows
+    .filter((row) => typeof row.body === "string" && row.body.trim().length > 0)
+    .map(reviewFromRow);
+  const reviewedGameSlugs = new Set(reviews.map((review) => review.gameSlug).filter(Boolean));
+
+  const ratingComments = ratingRows
+    .filter((row: any) => typeof row.comment_body === "string" && row.comment_body.trim().length > 0)
+    .map(ratingRowToReview)
+    .filter((review) => !reviewedGameSlugs.has(review.gameSlug));
+
+  return [...reviews, ...ratingComments]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 6);
 }
 
 export async function getProfileRowByUsername(username: string) {

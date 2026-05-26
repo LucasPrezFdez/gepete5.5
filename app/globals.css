@@ -120,3 +120,70 @@ body {
 .rating-slider::-moz-range-track {
   background: transparent;
 }
+
+.prose-review > * + * {
+  margin-top: 0.75rem;
+}
+.prose-review p {
+  margin: 0;
+}
+.prose-review strong {
+  color: rgb(244 247 251);
+  font-weight: 700;
+}
+.prose-review em {
+  font-style: italic;
+}
+.prose-review h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: rgb(244 247 251);
+  margin: 0;
+}
+.prose-review ul,
+.prose-review ol {
+  padding-left: 1.4rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.prose-review ul {
+  list-style: disc;
+}
+.prose-review ol {
+  list-style: decimal;
+}
+.prose-review ul li::marker {
+  color: rgba(96, 165, 250, 0.85);
+}
+.prose-review ol li::marker {
+  color: rgba(96, 165, 250, 0.85);
+  font-weight: 600;
+}
+.prose-review blockquote {
+  border-left: 2px solid rgba(96, 165, 250, 0.55);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.35rem 0.85rem;
+  font-style: italic;
+  color: rgba(244, 247, 251, 0.85);
+  margin: 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.prose-review code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  color: rgb(244 247 251);
+}
+.prose-review a {
+  color: rgb(96, 165, 250);
+  text-decoration: underline;
+  text-decoration-color: rgba(96, 165, 250, 0.4);
+  text-underline-offset: 2px;
+}
+.prose-review .ProseMirror-trailingBreak {
+  display: none;
+}

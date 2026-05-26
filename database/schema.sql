@@ -354,3 +354,21 @@ create table if not exists admin_jobs (
   error_message text,
   created_at timestamptz default now()
 );
+
+-- AI-powered recommendations cached per user (24h TTL).
+create table if not exists user_recommendations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id) on delete cascade not null,
+  game_id uuid references games(id) on delete cascade not null,
+  reason text not null,
+  affinity_score numeric(4,1),
+  position int not null,
+  generated_at timestamptz default now(),
+  expires_at timestamptz default now() + interval '24 hours',
+  unique (user_id, game_id)
+);
+
+create index if not exists user_recommendations_user_position_idx
+  on user_recommendations(user_id, position);
+create index if not exists user_recommendations_expires_idx
+  on user_recommendations(expires_at);

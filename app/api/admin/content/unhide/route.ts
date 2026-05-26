@@ -3,6 +3,7 @@ import { parseBody, v } from "@/lib/validation";
 import { requireAdminFromRequest } from "@/services/community";
 import { createSqlClient } from "@/services/database";
 import { createLogger } from "@/lib/logger";
+import { logAdminAction, type AdminAuditTargetType } from "@/services/admin-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +41,13 @@ export async function POST(request: Request) {
       [body.value.id]
     );
     log.info("content restored", { type: body.value.type, id: body.value.id, adminId: admin.id });
+    await logAdminAction({
+      admin: { id: admin.id, username: admin.user_metadata?.username },
+      action: "content.unhide",
+      targetType: body.value.type as AdminAuditTargetType,
+      targetId: body.value.id,
+      request
+    });
     return jsonOk({ ok: true });
   } catch (error) {
     log.error("unhide failed", { error: error instanceof Error ? error.message : String(error) });

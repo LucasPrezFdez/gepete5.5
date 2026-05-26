@@ -3,6 +3,7 @@ import { parseBody, v } from "@/lib/validation";
 import { requireAdminFromRequest } from "@/services/community";
 import { createSqlClient } from "@/services/database";
 import { createLogger } from "@/lib/logger";
+import { logAdminAction, type AdminAuditTargetType } from "@/services/admin-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,11 +37,20 @@ export async function POST(request: Request) {
     const rows = (await sql.query(`select id from ${table} where id = $1 limit 1`, [body.value.id])) as Array<{ id: string }>;
     if (!rows.length) return jsonError("Contenido no encontrado.", 404);
 
+    const reason = body.value.reason?.trim() || null;
     await sql.query(
       `update ${table} set hidden_at = now(), hidden_reason = $2, hidden_by = $3 where id = $1`,
-      [body.value.id, body.value.reason?.trim() || null, admin.id]
+      [body.value.id, reason, admin.id]
     );
     log.info("content hidden", { type: body.value.type, id: body.value.id, adminId: admin.id });
+    await logAdminAction({
+      admin: { id: admin.id, username: admin.user_metadata?.username },
+      action: "content.hide",
+      targetType: body.value.type as AdminAuditTargetType,
+      targetId: body.value.id,
+      metadata: { reason },
+      request
+    });
     return jsonOk({ ok: true });
   } catch (error) {
     log.error("hide failed", { error: error instanceof Error ? error.message : String(error) });

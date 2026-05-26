@@ -1,6 +1,7 @@
 import { createLogger } from "@/lib/logger";
 import { createSqlClient } from "@/services/database";
 import { getExploreGames } from "@/services/games";
+import { logLlmCall } from "@/services/llm-metrics";
 import type { Game } from "@/data/games";
 
 const log = createLogger("services/recommendations");
@@ -50,7 +51,10 @@ export async function getRecommendationsForUser(
 ): Promise<RecommendationsResult> {
   if (!options.force) {
     const cached = await readCache(userId);
-    if (cached) return cached;
+    if (cached) {
+      void logLlmCall({ scope: "recommendations", outcome: "cache_hit", userId });
+      return cached;
+    }
   }
 
   const profile = await buildTasteProfile(userId);
@@ -66,7 +70,7 @@ export async function getRecommendationsForUser(
     };
   }
 
-  const ranked = await rankWithLLM(profile, candidates);
+  const ranked = await rankWithLLM(profile, candidates, userId);
   if (ranked.length === 0) {
     return {
       recommendations: [],
@@ -296,10 +300,20 @@ async function gatherCandidates(profile: TasteProfile): Promise<Game[]> {
   return Array.from(seen.values());
 }
 
-async function rankWithLLM(profile: TasteProfile, candidates: Game[]): Promise<Recommendation[]> {
+async function rankWithLLM(
+  profile: TasteProfile,
+  candidates: Game[],
+  userId?: string
+): Promise<Recommendation[]> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     log.warn("missing GROQ_API_KEY — falling back to deterministic ranking");
+    void logLlmCall({
+      scope: "recommendations",
+      outcome: "fallback",
+      userId: userId ?? null,
+      errorCode: "missing-api-key"
+    });
     return deterministicRanking(profile, candidates);
   }
 
@@ -328,6 +342,7 @@ async function rankWithLLM(profile: TasteProfile, candidates: Game[]): Promise<R
 
   const userPrompt = `PERFIL:\n${userBlock}\n\nCANDIDATOS:\n${candidatesBlock}`;
 
+  const startedAt = Date.now();
   try {
     const response = await fetch(GROQ_URL, {
       method: "POST",
@@ -346,24 +361,60 @@ async function rankWithLLM(profile: TasteProfile, candidates: Game[]): Promise<R
         ]
       })
     });
+    const latencyMs = Date.now() - startedAt;
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
       log.warn("groq request failed", { status: response.status, body: body.slice(0, 400) });
+      void logLlmCall({
+        scope: "recommendations",
+        outcome: "error",
+        userId: userId ?? null,
+        model: DEFAULT_MODEL,
+        latencyMs,
+        httpStatus: response.status,
+        errorCode: `http_${response.status}`
+      });
       return deterministicRanking(profile, candidates);
     }
 
     const data = (await response.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
+    const usage = data.usage ?? {};
     const content = data.choices?.[0]?.message?.content?.trim();
     if (!content) {
       log.warn("groq returned empty content");
+      void logLlmCall({
+        scope: "recommendations",
+        outcome: "error",
+        userId: userId ?? null,
+        model: DEFAULT_MODEL,
+        latencyMs,
+        httpStatus: response.status,
+        errorCode: "empty-content",
+        tokensIn: usage.prompt_tokens ?? null,
+        tokensOut: usage.completion_tokens ?? null
+      });
       return deterministicRanking(profile, candidates);
     }
 
     const parsed = parseLLMResponse(content);
-    if (!parsed) return deterministicRanking(profile, candidates);
+    if (!parsed) {
+      void logLlmCall({
+        scope: "recommendations",
+        outcome: "error",
+        userId: userId ?? null,
+        model: DEFAULT_MODEL,
+        latencyMs,
+        httpStatus: response.status,
+        errorCode: "invalid-json",
+        tokensIn: usage.prompt_tokens ?? null,
+        tokensOut: usage.completion_tokens ?? null
+      });
+      return deterministicRanking(profile, candidates);
+    }
 
     const byslug = new Map(candidates.map((game) => [game.slug, game]));
     const recommendations: Recommendation[] = [];
@@ -385,12 +436,42 @@ async function rankWithLLM(profile: TasteProfile, candidates: Game[]): Promise<R
 
     if (recommendations.length === 0) {
       log.warn("llm response had no valid slugs");
+      void logLlmCall({
+        scope: "recommendations",
+        outcome: "error",
+        userId: userId ?? null,
+        model: DEFAULT_MODEL,
+        latencyMs,
+        httpStatus: response.status,
+        errorCode: "no-valid-slugs",
+        tokensIn: usage.prompt_tokens ?? null,
+        tokensOut: usage.completion_tokens ?? null
+      });
       return deterministicRanking(profile, candidates);
     }
+
+    void logLlmCall({
+      scope: "recommendations",
+      outcome: "llm",
+      userId: userId ?? null,
+      model: DEFAULT_MODEL,
+      latencyMs,
+      httpStatus: response.status,
+      tokensIn: usage.prompt_tokens ?? null,
+      tokensOut: usage.completion_tokens ?? null
+    });
 
     return recommendations;
   } catch (error) {
     log.warn("llm ranking failed", { error });
+    void logLlmCall({
+      scope: "recommendations",
+      outcome: "error",
+      userId: userId ?? null,
+      model: DEFAULT_MODEL,
+      latencyMs: Date.now() - startedAt,
+      errorCode: error instanceof Error ? error.name : "unknown"
+    });
     return deterministicRanking(profile, candidates);
   }
 }

@@ -3,6 +3,7 @@ import { parseBody, v } from "@/lib/validation";
 import { requireAdminFromRequest } from "@/services/community";
 import { createSqlClient } from "@/services/database";
 import { createLogger } from "@/lib/logger";
+import { logAdminAction } from "@/services/admin-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -164,6 +165,21 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
       action,
       hidden: hidePayload.applied,
       banned: banPayload.applied
+    });
+    await logAdminAction({
+      admin: { id: admin.id, username: admin.user_metadata?.username },
+      action: action === "resolve" ? "report.resolve" : "report.dismiss",
+      targetType: "report",
+      targetId: id,
+      metadata: {
+        reportTargetType: report.target_type,
+        reportTargetId: report.target_id,
+        hideContent: hidePayload.applied,
+        banAuthor: banPayload.applied,
+        banUntil: banPayload.until,
+        note
+      },
+      request
     });
 
     return jsonOk({

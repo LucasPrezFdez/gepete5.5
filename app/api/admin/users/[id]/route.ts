@@ -3,6 +3,7 @@ import { parseBody, v } from "@/lib/validation";
 import { requireAdminFromRequest } from "@/services/community";
 import { createSqlClient } from "@/services/database";
 import { createLogger } from "@/lib/logger";
+import { logAdminAction } from "@/services/admin-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,9 +149,9 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
   try {
     const sql = createSqlClient();
     const existing = (await sql.query(
-      "select id, is_admin from app_users where id = $1 limit 1",
+      "select id, is_admin, username from app_users where id = $1 limit 1",
       [id]
-    )) as Array<{ id: string; is_admin: boolean }>;
+    )) as Array<{ id: string; is_admin: boolean; username: string }>;
     if (!existing.length) return jsonError("Usuario no encontrado.", 404);
 
     if (body.value.action === "ban") {
@@ -168,6 +169,15 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
         [id, until, reason, admin.id]
       );
       log.info("user banned", { adminId: admin.id, targetId: id, until, reason });
+      await logAdminAction({
+        admin: { id: admin.id, username: admin.user_metadata?.username },
+        action: "user.ban",
+        targetType: "user",
+        targetId: id,
+        targetLabel: existing[0].username,
+        metadata: { reason, until, durationHours: body.value.durationHours ?? null },
+        request
+      });
       return jsonOk({ ok: true, banned: { since: new Date().toISOString(), until, reason, by: admin.id } });
     }
 
@@ -179,6 +189,14 @@ export async function PATCH(request: Request, { params }: { params: Params }) {
         [id]
       );
       log.info("user unbanned", { adminId: admin.id, targetId: id });
+      await logAdminAction({
+        admin: { id: admin.id, username: admin.user_metadata?.username },
+        action: "user.unban",
+        targetType: "user",
+        targetId: id,
+        targetLabel: existing[0].username,
+        request
+      });
       return jsonOk({ ok: true, banned: null });
     }
 

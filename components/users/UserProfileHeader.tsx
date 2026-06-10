@@ -12,8 +12,22 @@ import { ReportButton } from "@/components/feedback/ReportButton";
 import { createBrowserAuthClient } from "@/services/auth-browser";
 import { buildAuthRedirectUrl } from "@/hooks/useAuthSession";
 
-const PLATFORM_OPTIONS = ["PC", "PlayStation 5", "Xbox Series", "Nintendo Switch", "Mobile"];
-const GENRE_OPTIONS = ["RPG", "Acción", "Aventura", "Terror", "Indie", "Estrategia", "Metroidvania"];
+const PLATFORM_OPTIONS = [
+  "PC",
+  "PlayStation 5",
+  "Xbox Series",
+  "Nintendo Switch",
+  "Mobile",
+];
+const GENRE_OPTIONS = [
+  "RPG",
+  "Acción",
+  "Aventura",
+  "Terror",
+  "Indie",
+  "Estrategia",
+  "Metroidvania",
+];
 
 type Props = {
   profile: Profile;
@@ -43,13 +57,18 @@ export function UserProfileHeader({ profile, stats }: Props) {
   const [editOpen, setEditOpen] = useState(false);
   const [createListOpen, setCreateListOpen] = useState(false);
   const [bannerSaving, setBannerSaving] = useState(false);
-  const [bannerAdjustSource, setBannerAdjustSource] = useState<string | null>(null);
+  const [bannerAdjustSource, setBannerAdjustSource] = useState<string | null>(
+    null,
+  );
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
   const isOwnProfile = viewerUserId === currentProfile.id;
   const preferences = useMemo(
-    () => [...currentProfile.favoritePlatforms, ...currentProfile.favoriteGenres],
-    [currentProfile.favoritePlatforms, currentProfile.favoriteGenres]
+    () => [
+      ...currentProfile.favoritePlatforms,
+      ...currentProfile.favoriteGenres,
+    ],
+    [currentProfile.favoritePlatforms, currentProfile.favoriteGenres],
   );
 
   useEffect(() => {
@@ -83,7 +102,10 @@ export function UserProfileHeader({ profile, stats }: Props) {
           return;
         }
 
-        await fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }).catch(() => null);
+        await fetch("/api/me/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        }).catch(() => null);
         if (mounted) setCheckingViewer(false);
       } catch {
         if (mounted) {
@@ -97,7 +119,7 @@ export function UserProfileHeader({ profile, stats }: Props) {
     void loadViewer();
 
     const {
-      data: { subscription }
+      data: { subscription },
     } = authClient.auth.onAuthStateChange((_event, nextSession) => {
       setCheckingViewer(true);
       setAccessToken(nextSession?.access_token ?? null);
@@ -119,9 +141,16 @@ export function UserProfileHeader({ profile, stats }: Props) {
     let mounted = true;
 
     async function loadFollowState() {
-      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
-      const response = await fetch(`/api/users/${encodeURIComponent(currentProfile.username)}/follow`, { headers, cache: "no-store" }).catch(() => null);
-      const payload = response?.ok ? await response.json().catch(() => null) : null;
+      const headers = accessToken
+        ? { Authorization: `Bearer ${accessToken}` }
+        : undefined;
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(currentProfile.username)}/follow`,
+        { headers, cache: "no-store" },
+      ).catch(() => null);
+      const payload = response?.ok
+        ? await response.json().catch(() => null)
+        : null;
       if (!mounted || !payload) return;
       setFollowers(Number(payload.followerCount ?? stats.followerCount));
       setFollowing(Number(payload.followingCount ?? stats.followingCount));
@@ -132,30 +161,51 @@ export function UserProfileHeader({ profile, stats }: Props) {
     return () => {
       mounted = false;
     };
-  }, [accessToken, currentProfile.username, stats.followerCount, stats.followingCount]);
+  }, [
+    accessToken,
+    currentProfile.username,
+    stats.followerCount,
+    stats.followingCount,
+  ]);
 
   async function toggleFollow() {
     setMessage(null);
     if (!accessToken) {
-      window.location.href = buildAuthRedirectUrl(`/users/${currentProfile.username}`, "signin");
+      window.location.href = buildAuthRedirectUrl(
+        `/users/${currentProfile.username}`,
+        "signin",
+      );
       return;
     }
 
     setFollowLoading(true);
     try {
       const nextEnabled = !isFollowing;
-      const response = await fetch(`/api/users/${encodeURIComponent(currentProfile.username)}/follow`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ enabled: nextEnabled })
-      });
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(currentProfile.username)}/follow`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ enabled: nextEnabled }),
+        },
+      );
       const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.error ?? "No se pudo actualizar el seguimiento.");
+      if (!response.ok)
+        throw new Error(
+          payload?.error ?? "No se pudo actualizar el seguimiento.",
+        );
       setIsFollowing(Boolean(payload.isFollowing));
       setFollowers(Number(payload.followerCount ?? followers));
       setFollowing(Number(payload.followingCount ?? following));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el seguimiento.");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el seguimiento.",
+      );
     } finally {
       setFollowLoading(false);
     }
@@ -166,7 +216,11 @@ export function UserProfileHeader({ profile, stats }: Props) {
     const url = `${window.location.origin}/users/${currentProfile.username}`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: `${currentProfile.displayName} en GameIndex`, text: `Perfil de @${currentProfile.username}`, url });
+        await navigator.share({
+          title: `${currentProfile.displayName} en GameIndex`,
+          text: `Perfil de @${currentProfile.username}`,
+          url,
+        });
         return;
       }
       await navigator.clipboard.writeText(url);
@@ -181,9 +235,12 @@ export function UserProfileHeader({ profile, stats }: Props) {
       displayName: currentProfile.displayName,
       bio: currentProfile.bio ?? "",
       avatarUrl: currentProfile.avatarUrl ?? "",
-      bannerUrl: overrides?.bannerUrl !== undefined ? (overrides.bannerUrl ?? "") : (currentProfile.bannerUrl ?? ""),
+      bannerUrl:
+        overrides?.bannerUrl !== undefined
+          ? (overrides.bannerUrl ?? "")
+          : (currentProfile.bannerUrl ?? ""),
       favoritePlatforms: currentProfile.favoritePlatforms,
-      favoriteGenres: currentProfile.favoriteGenres
+      favoriteGenres: currentProfile.favoriteGenres,
     };
   }
 
@@ -191,15 +248,21 @@ export function UserProfileHeader({ profile, stats }: Props) {
     if (!accessToken) throw new Error("Debes iniciar sesión.");
     const response = await fetch("/api/me/profile", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify(payload)
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
     });
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.error ?? "No se pudo guardar el perfil.");
+    if (!response.ok)
+      throw new Error(data?.error ?? "No se pudo guardar el perfil.");
     return data.profile as Profile;
   }
 
-  async function handleBannerFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleBannerFileChange(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
@@ -218,7 +281,9 @@ export function UserProfileHeader({ profile, stats }: Props) {
       const dataUrl = await readFileAsDataUrl(file);
       setBannerAdjustSource(dataUrl);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo leer el banner.");
+      setMessage(
+        error instanceof Error ? error.message : "No se pudo leer el banner.",
+      );
     }
   }
 
@@ -243,7 +308,9 @@ export function UserProfileHeader({ profile, stats }: Props) {
       setCurrentProfile(next);
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo quitar el banner.");
+      setMessage(
+        error instanceof Error ? error.message : "No se pudo quitar el banner.",
+      );
     } finally {
       setBannerSaving(false);
     }
@@ -264,21 +331,33 @@ export function UserProfileHeader({ profile, stats }: Props) {
             unoptimized={currentProfile.bannerUrl.startsWith("data:")}
           />
         ) : null}
-        <div className={`absolute inset-0 bg-gradient-to-br ${currentProfile.bannerUrl ? "from-electric/10 via-violet/10 to-lime/5" : "from-electric/40 via-violet/35 to-lime/25"}`} />
-        <div className={`absolute inset-0 bg-premium-radial ${currentProfile.bannerUrl ? "opacity-30" : ""}`} />
-        <div className={`absolute -left-20 -top-20 h-72 w-72 rounded-full bg-electric/35 blur-3xl ${currentProfile.bannerUrl ? "opacity-25" : ""}`} />
-        <div className={`absolute -right-24 top-10 h-80 w-80 rounded-full bg-violet/30 blur-3xl ${currentProfile.bannerUrl ? "opacity-25" : ""}`} />
-        <div className={`absolute bottom-0 right-1/3 h-48 w-48 rounded-full bg-lime/25 blur-3xl ${currentProfile.bannerUrl ? "opacity-20" : ""}`} />
+        <div
+          className={`absolute inset-0 bg-gradient-to-br ${currentProfile.bannerUrl ? "from-electric/10 via-violet/10 to-lime/5" : "from-electric/40 via-violet/35 to-lime/25"}`}
+        />
+        <div
+          className={`absolute inset-0 bg-premium-radial ${currentProfile.bannerUrl ? "opacity-30" : ""}`}
+        />
+        <div
+          className={`absolute -left-20 -top-20 h-72 w-72 rounded-full bg-electric/35 blur-3xl ${currentProfile.bannerUrl ? "opacity-25" : ""}`}
+        />
+        <div
+          className={`absolute -right-24 top-10 h-80 w-80 rounded-full bg-violet/30 blur-3xl ${currentProfile.bannerUrl ? "opacity-25" : ""}`}
+        />
+        <div
+          className={`absolute bottom-0 right-1/3 h-48 w-48 rounded-full bg-lime/25 blur-3xl ${currentProfile.bannerUrl ? "opacity-20" : ""}`}
+        />
         <div
           className="absolute inset-0 opacity-[0.06] mix-blend-overlay"
           style={{
             backgroundImage:
               "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
-            backgroundSize: "32px 32px"
+            backgroundSize: "32px 32px",
           }}
           aria-hidden
         />
-        <div className={`absolute inset-x-0 bottom-0 bg-gradient-to-t to-transparent ${currentProfile.bannerUrl ? "h-16 from-surface/70 via-surface/20" : "h-24 from-surface/95 via-surface/40"}`} />
+        <div
+          className={`absolute inset-x-0 bottom-0 bg-gradient-to-t to-transparent ${currentProfile.bannerUrl ? "h-16 from-surface/70 via-surface/20" : "h-24 from-surface/95 via-surface/40"}`}
+        />
         {isOwnProfile && accessToken && (
           <>
             <input
@@ -297,7 +376,17 @@ export function UserProfileHeader({ profile, stats }: Props) {
                 aria-label="Cambiar imagen del banner"
                 title="Cambiar imagen del banner"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
                   <path d="M12 20h9" />
                   <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                 </svg>
@@ -306,12 +395,24 @@ export function UserProfileHeader({ profile, stats }: Props) {
                 <button
                   type="button"
                   disabled={bannerSaving}
-                  onClick={() => setBannerAdjustSource(currentProfile.bannerUrl ?? null)}
+                  onClick={() =>
+                    setBannerAdjustSource(currentProfile.bannerUrl ?? null)
+                  }
                   className="pointer-events-auto grid h-10 w-10 place-items-center rounded-xl border border-white/20 bg-black/50 text-white shadow-lg backdrop-blur-md transition hover:border-white/40 hover:bg-black/65 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric disabled:opacity-50"
                   aria-label="Reajustar imagen del banner"
                   title="Reajustar banner"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
@@ -326,7 +427,17 @@ export function UserProfileHeader({ profile, stats }: Props) {
                   aria-label="Quitar imagen del banner"
                   title="Quitar banner"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
                     <polyline points="3 6 5 6 21 6" />
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                   </svg>
@@ -339,7 +450,10 @@ export function UserProfileHeader({ profile, stats }: Props) {
       <div className="relative p-6 pt-0 md:p-8 md:pt-0">
         <div className="flex flex-col gap-6 md:flex-row md:items-end">
           <div className="relative -mt-20 shrink-0">
-            <div className="absolute -inset-1.5 rounded-[2rem] bg-gradient-to-br from-electric via-violet to-lime opacity-90 blur-md" aria-hidden />
+            <div
+              className="absolute -inset-1.5 rounded-[2rem] bg-gradient-to-br from-electric via-violet to-lime opacity-90 blur-md"
+              aria-hidden
+            />
             <div className="relative grid h-32 w-32 place-items-center overflow-hidden rounded-[1.75rem] border-2 border-white/20 bg-gradient-to-br from-electric to-violet text-4xl font-black text-white shadow-glow md:h-36 md:w-36">
               {currentProfile.avatarUrl ? (
                 <Image
@@ -358,13 +472,16 @@ export function UserProfileHeader({ profile, stats }: Props) {
           <div className="flex-1 pt-4 md:pt-0">
             <div className="mb-2.5 flex items-center gap-2">
               <span className="h-px w-5 rounded-full bg-electric" aria-hidden />
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-electric">@{currentProfile.username}</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-electric">
+                @{currentProfile.username}
+              </p>
             </div>
             <h1 className="text-balance text-4xl font-black leading-tight tracking-tight md:text-5xl">
               {currentProfile.displayName}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-muted md:text-base">
-              {currentProfile.bio ?? "Perfil de GameIndex con actividad, reseñas, listas y biblioteca personal."}
+              {currentProfile.bio ??
+                "Perfil de GameIndex con actividad, reseñas, listas y biblioteca personal."}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Badge tone="blue">{stats.ratingsCount} valorados</Badge>
@@ -377,17 +494,38 @@ export function UserProfileHeader({ profile, stats }: Props) {
           <div className="flex flex-wrap gap-2 md:flex-col md:items-end">
             {isOwnProfile ? (
               <>
-                <Button type="button" onClick={() => setCreateListOpen(true)}>Crear lista</Button>
-                <Button type="button" variant="secondary" onClick={() => setEditOpen(true)}>Editar perfil</Button>
+                <Button type="button" onClick={() => setCreateListOpen(true)}>
+                  Crear lista
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setEditOpen(true)}
+                >
+                  Editar perfil
+                </Button>
               </>
             ) : checkingViewer ? (
-              <Button type="button" disabled>Cargando...</Button>
+              <Button type="button" disabled>
+                Cargando...
+              </Button>
             ) : (
-              <Button type="button" onClick={toggleFollow} disabled={followLoading} variant={isFollowing ? "secondary" : "primary"}>
-                {followLoading ? "Guardando..." : isFollowing ? "Siguiendo" : "Seguir"}
+              <Button
+                type="button"
+                onClick={toggleFollow}
+                disabled={followLoading}
+                variant={isFollowing ? "secondary" : "primary"}
+              >
+                {followLoading
+                  ? "Guardando..."
+                  : isFollowing
+                    ? "Siguiendo"
+                    : "Seguir"}
               </Button>
             )}
-            <Button type="button" variant="secondary" onClick={shareProfile}>Compartir</Button>
+            <Button type="button" variant="secondary" onClick={shareProfile}>
+              Compartir
+            </Button>
             {!isOwnProfile && (
               <ReportButton
                 targetType="profile"
@@ -401,25 +539,39 @@ export function UserProfileHeader({ profile, stats }: Props) {
 
         <div className="mt-7 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/10 pt-5 text-xs text-muted">
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-electric" aria-hidden />
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-electric"
+              aria-hidden
+            />
             Miembro desde {formatDate(currentProfile.createdAt)}
           </span>
-          <span className="text-white/15" aria-hidden>•</span>
+          <span className="text-white/15" aria-hidden>
+            •
+          </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-violet" aria-hidden />
             {following} siguiendo
           </span>
           {preferences.length > 0 && (
             <>
-              <span className="text-white/15" aria-hidden>•</span>
+              <span className="text-white/15" aria-hidden>
+                •
+              </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-lime" aria-hidden />
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-lime"
+                  aria-hidden
+                />
                 {preferences.slice(0, 4).join(" · ")}
               </span>
             </>
           )}
         </div>
-        {message && <p className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-muted">{message}</p>}
+        {message && (
+          <p className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-muted">
+            {message}
+          </p>
+        )}
       </div>
 
       {editOpen && accessToken && (
@@ -455,7 +607,11 @@ export function UserProfileHeader({ profile, stats }: Props) {
               await saveBannerImage(dataUrl);
               setBannerAdjustSource(null);
             } catch (error) {
-              throw new Error(error instanceof Error ? error.message : "No se pudo actualizar el banner.");
+              throw new Error(
+                error instanceof Error
+                  ? error.message
+                  : "No se pudo actualizar el banner.",
+              );
             }
           }}
         />
@@ -467,7 +623,7 @@ export function UserProfileHeader({ profile, stats }: Props) {
 function CreateListDialog({
   accessToken,
   onClose,
-  onCreated
+  onCreated,
 }: {
   accessToken: string;
   onClose: () => void;
@@ -487,14 +643,22 @@ function CreateListDialog({
     try {
       const response = await fetch("/api/lists", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ title, description, isPublic, games: [] })
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ title, description, isPublic, games: [] }),
       });
       const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.error ?? "No se pudo crear la lista.");
+      if (!response.ok)
+        throw new Error(payload?.error ?? "No se pudo crear la lista.");
       onCreated(payload.slug);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "No se pudo crear la lista.");
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "No se pudo crear la lista.",
+      );
     } finally {
       setSaving(false);
     }
@@ -502,46 +666,84 @@ function CreateListDialog({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Crear lista">
-      <form onSubmit={submit} className="surface-card w-full max-w-xl rounded-3xl p-6 md:p-8">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-electric">Listas</p>
-            <h2 className="text-2xl font-black">Crear lista</h2>
-            <p className="mt-2 text-sm text-muted">Crea una lista vacía y después añade juegos desde sus fichas.</p>
+      <div
+        className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Crear lista"
+      >
+        <form
+          onSubmit={submit}
+          className="surface-card w-full max-w-xl rounded-3xl p-6 md:p-8"
+        >
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-electric">
+                Listas
+              </p>
+              <h2 className="text-2xl font-black">Crear lista</h2>
+              <p className="mt-2 text-sm text-muted">
+                Crea una lista vacía y después añade juegos desde sus fichas.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="rounded-xl px-3 py-2 text-sm text-muted hover:bg-white/10 hover:text-foreground"
+              onClick={onClose}
+            >
+              Cerrar
+            </button>
           </div>
-          <button type="button" className="rounded-xl px-3 py-2 text-sm text-muted hover:bg-white/10 hover:text-foreground" onClick={onClose}>Cerrar</button>
-        </div>
 
-        <div className="space-y-5">
-          <Field label="Título">
-            <Input value={title} maxLength={80} onChange={(event) => setTitle(event.target.value)} placeholder="Mis indies pendientes" />
-          </Field>
-          <Field label="Descripción">
-            <textarea
-              value={description}
-              maxLength={500}
-              rows={4}
-              onChange={(event) => setDescription(event.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-muted transition focus:border-electric"
-              placeholder="Explica de qué va la lista..."
-            />
-          </Field>
-          <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
-            <input type="checkbox" checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} className="h-4 w-4 accent-blue-500" />
-            <span>
-              <span className="font-semibold">Lista pública</span>
-              <span className="block text-muted">Aparecerá en tu perfil si está activada.</span>
-            </span>
-          </label>
-        </div>
+          <div className="space-y-5">
+            <Field label="Título">
+              <Input
+                value={title}
+                maxLength={80}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Mis indies pendientes"
+              />
+            </Field>
+            <Field label="Descripción">
+              <textarea
+                value={description}
+                maxLength={500}
+                rows={4}
+                onChange={(event) => setDescription(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-muted transition focus:border-electric"
+                placeholder="Explica de qué va la lista..."
+              />
+            </Field>
+            <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm">
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(event) => setIsPublic(event.target.checked)}
+                className="h-4 w-4 accent-blue-500"
+              />
+              <span>
+                <span className="font-semibold">Lista pública</span>
+                <span className="block text-muted">
+                  Aparecerá en tu perfil si está activada.
+                </span>
+              </span>
+            </label>
+          </div>
 
-        {error && <p className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">{error}</p>}
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Button type="submit" disabled={saving}>{saving ? "Creando..." : "Crear lista"}</Button>
-          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-        </div>
-      </form>
+          {error && (
+            <p className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button type="submit" disabled={saving}>
+              {saving ? "Creando..." : "Crear lista"}
+            </Button>
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
       </div>
     </Portal>
   );
@@ -551,7 +753,7 @@ function EditProfileDialog({
   profile,
   accessToken,
   onClose,
-  onSaved
+  onSaved,
 }: {
   profile: Profile;
   accessToken: string;
@@ -561,7 +763,9 @@ function EditProfileDialog({
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [bio, setBio] = useState(profile.bio ?? "");
   const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl ?? "");
-  const [favoritePlatforms, setFavoritePlatforms] = useState(profile.favoritePlatforms);
+  const [favoritePlatforms, setFavoritePlatforms] = useState(
+    profile.favoritePlatforms,
+  );
   const [favoriteGenres, setFavoriteGenres] = useState(profile.favoriteGenres);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -603,14 +807,29 @@ function EditProfileDialog({
     try {
       const response = await fetch("/api/me/profile", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ displayName, bio, avatarUrl, bannerUrl: profile.bannerUrl ?? "", favoritePlatforms, favoriteGenres })
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          displayName,
+          bio,
+          avatarUrl,
+          bannerUrl: profile.bannerUrl ?? "",
+          favoritePlatforms,
+          favoriteGenres,
+        }),
       });
       const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.error ?? "No se pudo guardar el perfil.");
+      if (!response.ok)
+        throw new Error(payload?.error ?? "No se pudo guardar el perfil.");
       onSaved(payload.profile);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "No se pudo guardar el perfil.");
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "No se pudo guardar el perfil.",
+      );
     } finally {
       setSaving(false);
     }
@@ -622,8 +841,16 @@ function EditProfileDialog({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Editar perfil">
-        <form onSubmit={submit} className="relative my-auto w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-surface/95 shadow-card backdrop-blur">
+      <div
+        className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-md"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Editar perfil"
+      >
+        <form
+          onSubmit={submit}
+          className="relative my-auto w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-surface/95 shadow-card backdrop-blur"
+        >
           {/* Banner decorativo */}
           <div className="relative h-24 overflow-hidden md:h-28">
             <div className="absolute inset-0 bg-gradient-to-br from-electric/35 via-violet/30 to-lime/20" />
@@ -634,7 +861,7 @@ function EditProfileDialog({
               style={{
                 backgroundImage:
                   "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
-                backgroundSize: "32px 32px"
+                backgroundSize: "32px 32px",
               }}
               aria-hidden
             />
@@ -645,7 +872,15 @@ function EditProfileDialog({
               aria-label="Cerrar"
               className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/40 text-muted backdrop-blur transition hover:border-white/30 hover:bg-black/60 hover:text-foreground"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+              >
                 <path d="M6 6l12 12M18 6 6 18" />
               </svg>
             </button>
@@ -654,26 +889,47 @@ function EditProfileDialog({
           <div className="relative max-h-[calc(90vh-7rem)] overflow-y-auto px-6 pb-6 pt-2 md:px-8 md:pb-7">
             <div className="mb-6">
               <div className="mb-2 flex items-center gap-2">
-                <span className="h-px w-5 rounded-full bg-electric" aria-hidden />
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-electric">Mi perfil</p>
+                <span
+                  className="h-px w-5 rounded-full bg-electric"
+                  aria-hidden
+                />
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-electric">
+                  Mi perfil
+                </p>
               </div>
               <h2 className="text-2xl font-black md:text-3xl">Editar perfil</h2>
-              <p className="mt-1.5 text-sm text-muted">El usuario <span className="text-foreground">@{profile.username}</span> no puede cambiarse en esta versión.</p>
+              <p className="mt-1.5 text-sm text-muted">
+                El usuario{" "}
+                <span className="text-foreground">@{profile.username}</span> no
+                puede cambiarse en esta versión.
+              </p>
             </div>
 
             <div className="space-y-6">
               {/* Avatar */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
                 <div className="mb-4 flex items-center gap-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-electric" aria-hidden />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">Avatar</p>
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-electric"
+                    aria-hidden
+                  />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
+                    Avatar
+                  </p>
                 </div>
                 <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
                   <div className="relative shrink-0">
-                    <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-electric via-violet to-lime opacity-70 blur-md" aria-hidden />
+                    <div
+                      className="absolute -inset-1 rounded-full bg-gradient-to-br from-electric via-violet to-lime opacity-70 blur-md"
+                      aria-hidden
+                    />
                     <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-white/20 bg-gradient-to-br from-electric/40 to-violet/40 shadow-glow">
                       {avatarUrl ? (
-                        <img src={avatarUrl} alt="Vista previa del avatar" className="h-full w-full object-cover" />
+                        <img
+                          src={avatarUrl}
+                          alt="Vista previa del avatar"
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <div className="grid h-full w-full place-items-center text-3xl font-black text-white">
                           {initials(displayName || profile.displayName)}
@@ -684,7 +940,17 @@ function EditProfileDialog({
                   <div className="flex-1 space-y-3">
                     <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
                       <label className="group inline-flex cursor-pointer items-center gap-2 rounded-xl border border-electric/30 bg-electric/10 px-3.5 py-2 text-sm font-semibold text-blue-100 transition hover:border-electric/60 hover:bg-electric/20">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                           <polyline points="17 8 12 3 7 8" />
                           <line x1="12" y1="3" x2="12" y2="15" />
@@ -703,7 +969,17 @@ function EditProfileDialog({
                           onClick={() => setAdjustSource(avatarUrl)}
                           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-semibold text-muted transition hover:border-white/20 hover:bg-white/10 hover:text-foreground"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden
+                          >
                             <circle cx="12" cy="12" r="3" />
                             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                           </svg>
@@ -713,10 +989,23 @@ function EditProfileDialog({
                       {avatarUrl && (
                         <button
                           type="button"
-                          onClick={() => { setAvatarUrl(""); setAvatarError(null); }}
+                          onClick={() => {
+                            setAvatarUrl("");
+                            setAvatarError(null);
+                          }}
                           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-semibold text-muted transition hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden
+                          >
                             <polyline points="3 6 5 6 21 6" />
                             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                           </svg>
@@ -724,14 +1013,20 @@ function EditProfileDialog({
                         </button>
                       )}
                     </div>
-                    <p className="text-center text-xs text-muted sm:text-left">PNG, JPG o WebP. Ajusta zoom y posición antes de guardar.</p>
+                    <p className="text-center text-xs text-muted sm:text-left">
+                      PNG, JPG o WebP. Ajusta zoom y posición antes de guardar.
+                    </p>
                   </div>
                 </div>
                 {avatarError && (
-                  <p className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{avatarError}</p>
+                  <p className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+                    {avatarError}
+                  </p>
                 )}
                 <details className="mt-3 text-xs text-muted">
-                  <summary className="cursor-pointer select-none rounded-lg px-1 py-1 transition hover:text-foreground">o pega una URL en su lugar</summary>
+                  <summary className="cursor-pointer select-none rounded-lg px-1 py-1 transition hover:text-foreground">
+                    o pega una URL en su lugar
+                  </summary>
                   <div className="mt-2">
                     <Input
                       value={hasCustomAvatar ? "" : avatarUrl}
@@ -747,16 +1042,24 @@ function EditProfileDialog({
               <div>
                 <div className="mb-2 flex items-end justify-between">
                   <span className="text-sm font-medium">Nombre visible</span>
-                  <span className="text-[11px] tabular-nums text-muted">{displayName.length}/{nameMax}</span>
+                  <span className="text-[11px] tabular-nums text-muted">
+                    {displayName.length}/{nameMax}
+                  </span>
                 </div>
-                <Input value={displayName} maxLength={nameMax} onChange={(event) => setDisplayName(event.target.value)} />
+                <Input
+                  value={displayName}
+                  maxLength={nameMax}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                />
               </div>
 
               {/* Bio */}
               <div>
                 <div className="mb-2 flex items-end justify-between">
                   <span className="text-sm font-medium">Bio</span>
-                  <span className="text-[11px] tabular-nums text-muted">{bio.length}/{bioMax}</span>
+                  <span className="text-[11px] tabular-nums text-muted">
+                    {bio.length}/{bioMax}
+                  </span>
                 </div>
                 <textarea
                   value={bio}
@@ -768,16 +1071,40 @@ function EditProfileDialog({
                 />
               </div>
 
-              <Picker title="Plataformas favoritas" eyebrow="Hardware" tone="electric" values={PLATFORM_OPTIONS} selected={favoritePlatforms} onToggle={(value) => toggle(favoritePlatforms, value, setFavoritePlatforms)} />
-              <Picker title="Géneros favoritos" eyebrow="Gustos" tone="lime" values={GENRE_OPTIONS} selected={favoriteGenres} onToggle={(value) => toggle(favoriteGenres, value, setFavoriteGenres)} />
+              <Picker
+                title="Plataformas favoritas"
+                eyebrow="Hardware"
+                tone="electric"
+                values={PLATFORM_OPTIONS}
+                selected={favoritePlatforms}
+                onToggle={(value) =>
+                  toggle(favoritePlatforms, value, setFavoritePlatforms)
+                }
+              />
+              <Picker
+                title="Géneros favoritos"
+                eyebrow="Gustos"
+                tone="lime"
+                values={GENRE_OPTIONS}
+                selected={favoriteGenres}
+                onToggle={(value) =>
+                  toggle(favoriteGenres, value, setFavoriteGenres)
+                }
+              />
             </div>
 
-            {error && <p className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">{error}</p>}
+            {error && (
+              <p className="mt-5 rounded-xl border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
+                {error}
+              </p>
+            )}
           </div>
 
           {/* Footer sticky */}
           <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-3 border-t border-white/10 bg-surface/95 px-6 py-4 backdrop-blur md:px-8">
-            <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Cancelar
+            </Button>
             <Button type="submit" disabled={saving}>
               {saving ? "Guardando..." : "Guardar cambios"}
             </Button>
@@ -799,7 +1126,13 @@ function EditProfileDialog({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-medium">{label}</span>
@@ -816,7 +1149,7 @@ function Picker({
   tone = "electric",
   values,
   selected,
-  onToggle
+  onToggle,
 }: {
   title: string;
   eyebrow?: string;
@@ -829,13 +1162,15 @@ function Picker({
     electric: {
       line: "bg-electric",
       eyebrow: "text-electric",
-      active: "border-electric/60 bg-electric/15 text-blue-100 shadow-[0_0_20px_rgba(59,130,246,0.25)]"
+      active:
+        "border-electric/60 bg-electric/15 text-blue-100 shadow-[0_0_20px_rgba(59,130,246,0.25)]",
     },
     lime: {
       line: "bg-lime",
       eyebrow: "text-lime",
-      active: "border-lime/60 bg-lime/15 text-lime shadow-[0_0_20px_rgba(163,230,53,0.2)]"
-    }
+      active:
+        "border-lime/60 bg-lime/15 text-lime shadow-[0_0_20px_rgba(163,230,53,0.2)]",
+    },
   }[tone];
 
   return (
@@ -844,13 +1179,22 @@ function Picker({
         <div>
           {eyebrow && (
             <div className="mb-1 flex items-center gap-2">
-              <span className={`h-px w-4 rounded-full ${toneClasses.line}`} aria-hidden />
-              <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${toneClasses.eyebrow}`}>{eyebrow}</p>
+              <span
+                className={`h-px w-4 rounded-full ${toneClasses.line}`}
+                aria-hidden
+              />
+              <p
+                className={`text-[10px] font-bold uppercase tracking-[0.22em] ${toneClasses.eyebrow}`}
+              >
+                {eyebrow}
+              </p>
             </div>
           )}
           <h3 className="text-sm font-semibold">{title}</h3>
         </div>
-        <span className="text-[11px] tabular-nums text-muted">{selected.length} elegido{selected.length === 1 ? "" : "s"}</span>
+        <span className="text-[11px] tabular-nums text-muted">
+          {selected.length} elegido{selected.length === 1 ? "" : "s"}
+        </span>
       </div>
       <div className="flex flex-wrap gap-2">
         {values.map((value) => {
@@ -876,19 +1220,36 @@ function Picker({
   );
 }
 
-function toggle(list: string[], value: string, setter: (value: string[]) => void) {
-  setter(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
+function toggle(
+  list: string[],
+  value: string,
+  setter: (value: string[]) => void,
+) {
+  setter(
+    list.includes(value)
+      ? list.filter((item) => item !== value)
+      : [...list, value],
+  );
 }
 
-function encodeCanvasToImage(canvas: HTMLCanvasElement, maxBytes = 900_000, mime = "image/webp"): string {
+function encodeCanvasToImage(
+  canvas: HTMLCanvasElement,
+  maxBytes = 900_000,
+  mime = "image/webp",
+): string {
   for (const quality of [0.98, 0.95, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72]) {
     const dataUrl = canvas.toDataURL(mime, quality);
-    const approxBytes = Math.floor(((dataUrl.length - (dataUrl.indexOf(",") + 1)) * 3) / 4);
+    const approxBytes = Math.floor(
+      ((dataUrl.length - (dataUrl.indexOf(",") + 1)) * 3) / 4,
+    );
     if (approxBytes <= maxBytes) return dataUrl;
   }
 
-  if (mime !== "image/jpeg") return encodeCanvasToImage(canvas, maxBytes, "image/jpeg");
-  throw new Error("La imagen es demasiado grande aunque comprimida. Prueba con otra más pequeña.");
+  if (mime !== "image/jpeg")
+    return encodeCanvasToImage(canvas, maxBytes, "image/jpeg");
+  throw new Error(
+    "La imagen es demasiado grande aunque comprimida. Prueba con otra más pequeña.",
+  );
 }
 
 type ImageAdjustMode = "avatar" | "banner";
@@ -910,7 +1271,7 @@ const IMAGE_ADJUST_CONFIG = {
     thumbWidth: 36,
     thumbHeight: 36,
     thumbClass: "rounded-full",
-    zoomLabel: "Zoom del avatar"
+    zoomLabel: "Zoom del avatar",
   },
   banner: {
     // Aspect ratio 16:5 (3.2:1) — coincide con el banner del header (aspect-[16/5]).
@@ -918,7 +1279,8 @@ const IMAGE_ADJUST_CONFIG = {
     // Presupuesto de 1 MB aprovecha todo el limite del backend (MAX_BANNER_DATA_BYTES).
     eyebrow: "Banner",
     title: "Ajusta tu banner",
-    description: "Arrastra para elegir la zona visible. Deja lo importante cerca del centro para que se vea bien en movil y escritorio.",
+    description:
+      "Arrastra para elegir la zona visible. Deja lo importante cerca del centro para que se vea bien en movil y escritorio.",
     previewWidth: 480,
     previewHeight: 150,
     outputWidth: 3200,
@@ -931,15 +1293,15 @@ const IMAGE_ADJUST_CONFIG = {
     thumbWidth: 144,
     thumbHeight: 45,
     thumbClass: "rounded-lg",
-    zoomLabel: "Zoom del banner"
-  }
+    zoomLabel: "Zoom del banner",
+  },
 } as const;
 
 function ImageAdjustDialog({
   mode,
   source,
   onClose,
-  onConfirm
+  onConfirm,
 }: {
   mode: ImageAdjustMode;
   source: string;
@@ -952,7 +1314,13 @@ function ImageAdjustDialog({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
-  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
 
   useEffect(() => {
     setImage(null);
@@ -968,14 +1336,17 @@ function ImageAdjustDialog({
 
   const baseScale = useMemo(() => {
     if (!image) return 1;
-    return Math.max(config.previewWidth / image.naturalWidth, config.previewHeight / image.naturalHeight);
+    return Math.max(
+      config.previewWidth / image.naturalWidth,
+      config.previewHeight / image.naturalHeight,
+    );
   }, [config.previewHeight, config.previewWidth, image]);
 
   const renderedSize = useMemo(() => {
     if (!image) return { w: 0, h: 0 };
     return {
       w: image.naturalWidth * baseScale * zoom,
-      h: image.naturalHeight * baseScale * zoom
+      h: image.naturalHeight * baseScale * zoom,
     };
   }, [image, baseScale, zoom]);
 
@@ -984,7 +1355,7 @@ function ImageAdjustDialog({
     const maxY = Math.max(0, (renderedSize.h - config.previewHeight) / 2);
     return {
       x: Math.max(-maxX, Math.min(maxX, next.x)),
-      y: Math.max(-maxY, Math.min(maxY, next.y))
+      y: Math.max(-maxY, Math.min(maxY, next.y)),
     };
   };
 
@@ -993,9 +1364,14 @@ function ImageAdjustDialog({
     const maxY = Math.max(0, (renderedSize.h - config.previewHeight) / 2);
     setOffset((prev) => ({
       x: Math.max(-maxX, Math.min(maxX, prev.x)),
-      y: Math.max(-maxY, Math.min(maxY, prev.y))
+      y: Math.max(-maxY, Math.min(maxY, prev.y)),
     }));
-  }, [config.previewHeight, config.previewWidth, renderedSize.w, renderedSize.h]);
+  }, [
+    config.previewHeight,
+    config.previewWidth,
+    renderedSize.w,
+    renderedSize.h,
+  ]);
 
   function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (!image || processing) return;
@@ -1005,7 +1381,7 @@ function ImageAdjustDialog({
       startX: event.clientX,
       startY: event.clientY,
       originX: offset.x,
-      originY: offset.y
+      originY: offset.y,
     };
   }
 
@@ -1015,8 +1391,8 @@ function ImageAdjustDialog({
     setOffset(
       clampOffset({
         x: drag.originX + (event.clientX - drag.startX),
-        y: drag.originY + (event.clientY - drag.startY)
-      })
+        y: drag.originY + (event.clientY - drag.startY),
+      }),
     );
   }
 
@@ -1054,13 +1430,31 @@ function ImageAdjustDialog({
     }
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(image, sx, sy, sourceWidth, sourceHeight, 0, 0, config.outputWidth, config.outputHeight);
+    ctx.drawImage(
+      image,
+      sx,
+      sy,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      config.outputWidth,
+      config.outputHeight,
+    );
 
     try {
-      const dataUrl = encodeCanvasToImage(canvas, config.outputMaxBytes, config.outputMime);
+      const dataUrl = encodeCanvasToImage(
+        canvas,
+        config.outputMaxBytes,
+        config.outputMime,
+      );
       await onConfirm(dataUrl);
     } catch (encodeError) {
-      setError(encodeError instanceof Error ? encodeError.message : "No se pudo procesar la imagen.");
+      setError(
+        encodeError instanceof Error
+          ? encodeError.message
+          : "No se pudo procesar la imagen.",
+      );
     } finally {
       setProcessing(false);
     }
@@ -1070,11 +1464,15 @@ function ImageAdjustDialog({
   const zoomMax = 3;
   const zoomPercent = ((zoom - zoomMin) / (zoomMax - zoomMin)) * 100;
   function bumpZoom(delta: number) {
-    setZoom((prev) => Math.min(zoomMax, Math.max(zoomMin, +(prev + delta).toFixed(2))));
+    setZoom((prev) =>
+      Math.min(zoomMax, Math.max(zoomMin, +(prev + delta).toFixed(2))),
+    );
   }
 
   const nudge = (deltaX: number, deltaY: number) => {
-    setOffset((prev) => clampOffset({ x: prev.x + deltaX, y: prev.y + deltaY }));
+    setOffset((prev) =>
+      clampOffset({ x: prev.x + deltaX, y: prev.y + deltaY }),
+    );
   };
 
   return (
@@ -1084,7 +1482,9 @@ function ImageAdjustDialog({
       aria-modal="true"
       aria-label={config.title}
     >
-      <div className={`relative my-auto w-full ${config.panelClass} overflow-hidden rounded-3xl border border-white/10 bg-surface/95 shadow-card backdrop-blur`}>
+      <div
+        className={`relative my-auto w-full ${config.panelClass} overflow-hidden rounded-3xl border border-white/10 bg-surface/95 shadow-card backdrop-blur`}
+      >
         {/* Banner */}
         <div className="relative h-20 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-electric/35 via-violet/30 to-lime/25" />
@@ -1095,7 +1495,7 @@ function ImageAdjustDialog({
             style={{
               backgroundImage:
                 "linear-gradient(rgba(255,255,255,0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.6) 1px, transparent 1px)",
-              backgroundSize: "28px 28px"
+              backgroundSize: "28px 28px",
             }}
             aria-hidden
           />
@@ -1106,7 +1506,15 @@ function ImageAdjustDialog({
             aria-label="Cerrar"
             className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-black/40 text-muted backdrop-blur transition hover:border-white/30 hover:bg-black/60 hover:text-foreground"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+            >
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
           </button>
@@ -1116,7 +1524,9 @@ function ImageAdjustDialog({
           <div className="mb-5">
             <div className="mb-2 flex items-center gap-2">
               <span className="h-px w-5 rounded-full bg-electric" aria-hidden />
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-electric">{config.eyebrow}</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-electric">
+                {config.eyebrow}
+              </p>
             </div>
             <h3 className="text-2xl font-black">{config.title}</h3>
             <p className="mt-1 text-xs text-muted">{config.description}</p>
@@ -1125,10 +1535,21 @@ function ImageAdjustDialog({
           <div className="flex flex-col items-center gap-5">
             {/* Preview con doble vista: grande + miniatura */}
             <div className="relative">
-              <div className={`absolute -inset-1.5 bg-gradient-to-br from-electric via-violet to-lime opacity-60 blur-md ${config.glowClass}`} aria-hidden />
+              <div
+                className={`absolute -inset-1.5 bg-gradient-to-br from-electric via-violet to-lime opacity-60 blur-md ${config.glowClass}`}
+                aria-hidden
+              />
               <div
                 className={`relative touch-none select-none overflow-hidden border-2 border-white/20 bg-black/60 shadow-glow ${config.shapeClass}`}
-                style={{ width: config.previewWidth, height: config.previewHeight, cursor: image ? (dragRef.current ? "grabbing" : "grab") : "default" }}
+                style={{
+                  width: config.previewWidth,
+                  height: config.previewHeight,
+                  cursor: image
+                    ? dragRef.current
+                      ? "grabbing"
+                      : "grab"
+                    : "default",
+                }}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerEnd}
@@ -1148,7 +1569,7 @@ function ImageAdjustDialog({
                       height: renderedSize.h,
                       transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
                       maxWidth: "none",
-                      pointerEvents: "none"
+                      pointerEvents: "none",
                     }}
                   />
                 ) : (
@@ -1174,18 +1595,23 @@ function ImageAdjustDialog({
                 <div className="absolute -bottom-3 -right-2 flex items-center gap-2 rounded-full border border-white/15 bg-background/90 p-1 pr-3 shadow-card backdrop-blur">
                   <div
                     className={`overflow-hidden border border-white/15 bg-black/40 ${config.thumbClass}`}
-                    style={{ width: config.thumbWidth, height: config.thumbHeight }}
+                    style={{
+                      width: config.thumbWidth,
+                      height: config.thumbHeight,
+                    }}
                   >
                     <div
                       className="h-full w-full bg-cover bg-center"
                       style={{
                         backgroundImage: `url(${source})`,
                         backgroundSize: `${(renderedSize.w / config.previewWidth) * config.thumbWidth}px ${(renderedSize.h / config.previewHeight) * config.thumbHeight}px`,
-                        backgroundPosition: `calc(50% + ${(offset.x / config.previewWidth) * config.thumbWidth}px) calc(50% + ${(offset.y / config.previewHeight) * config.thumbHeight}px)`
+                        backgroundPosition: `calc(50% + ${(offset.x / config.previewWidth) * config.thumbWidth}px) calc(50% + ${(offset.y / config.previewHeight) * config.thumbHeight}px)`,
                       }}
                     />
                   </div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted">Preview</span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted">
+                    Preview
+                  </span>
                 </div>
               )}
             </div>
@@ -1194,7 +1620,9 @@ function ImageAdjustDialog({
             <div className="w-full">
               <div className="mb-2 flex items-center justify-between text-xs">
                 <span className="font-semibold text-muted">Zoom</span>
-                <span className="rounded-md bg-white/5 px-2 py-0.5 font-mono tabular-nums text-foreground">{zoom.toFixed(2)}x</span>
+                <span className="rounded-md bg-white/5 px-2 py-0.5 font-mono tabular-nums text-foreground">
+                  {zoom.toFixed(2)}x
+                </span>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -1204,7 +1632,17 @@ function ImageAdjustDialog({
                   aria-label="Reducir zoom"
                   className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-foreground transition hover:border-electric/40 hover:bg-electric/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M5 12h14" /></svg>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                  >
+                    <path d="M5 12h14" />
+                  </svg>
                 </button>
                 <div className="relative flex-1">
                   <div
@@ -1212,7 +1650,10 @@ function ImageAdjustDialog({
                     style={{ width: `${zoomPercent}%` }}
                     aria-hidden
                   />
-                  <div className="pointer-events-none absolute inset-y-1/2 left-0 right-0 h-1 -translate-y-1/2 rounded-full bg-white/10" aria-hidden />
+                  <div
+                    className="pointer-events-none absolute inset-y-1/2 left-0 right-0 h-1 -translate-y-1/2 rounded-full bg-white/10"
+                    aria-hidden
+                  />
                   <input
                     type="range"
                     min={zoomMin}
@@ -1232,25 +1673,67 @@ function ImageAdjustDialog({
                   aria-label="Aumentar zoom"
                   className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/5 text-foreground transition hover:border-electric/40 hover:bg-electric/10 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                  >
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
                 </button>
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2 text-xs">
               <span />
-              <button type="button" disabled={!image || processing} onClick={() => nudge(0, -8)} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40">Arriba</button>
+              <button
+                type="button"
+                disabled={!image || processing}
+                onClick={() => nudge(0, -8)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40"
+              >
+                Arriba
+              </button>
               <span />
-              <button type="button" disabled={!image || processing} onClick={() => nudge(-8, 0)} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40">Izq.</button>
-              <span className="grid place-items-center text-[10px] uppercase tracking-[0.14em] text-muted">Mover</span>
-              <button type="button" disabled={!image || processing} onClick={() => nudge(8, 0)} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40">Der.</button>
+              <button
+                type="button"
+                disabled={!image || processing}
+                onClick={() => nudge(-8, 0)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40"
+              >
+                Izq.
+              </button>
+              <span className="grid place-items-center text-[10px] uppercase tracking-[0.14em] text-muted">
+                Mover
+              </span>
+              <button
+                type="button"
+                disabled={!image || processing}
+                onClick={() => nudge(8, 0)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40"
+              >
+                Der.
+              </button>
               <span />
-              <button type="button" disabled={!image || processing} onClick={() => nudge(0, 8)} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40">Abajo</button>
+              <button
+                type="button"
+                disabled={!image || processing}
+                onClick={() => nudge(0, 8)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40"
+              >
+                Abajo
+              </button>
               <span />
             </div>
 
             {error && (
-              <p className="w-full rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{error}</p>
+              <p className="w-full rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+                {error}
+              </p>
             )}
           </div>
         </div>
@@ -1260,18 +1743,44 @@ function ImageAdjustDialog({
           <button
             type="button"
             disabled={processing}
-            onClick={() => { setZoom(1); setOffset({ x: 0, y: 0 }); }}
+            onClick={() => {
+              setZoom(1);
+              setOffset({ x: 0, y: 0 });
+            }}
             className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-muted transition hover:border-white/25 hover:text-foreground disabled:opacity-40"
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
               <polyline points="1 4 1 10 7 10" />
               <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
             </svg>
             Reiniciar
           </button>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={processing}>Cancelar</Button>
-            <Button type="button" onClick={() => void handleConfirm()} disabled={!image || processing}>{processing ? "Aplicando..." : "Aplicar"}</Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={processing}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleConfirm()}
+              disabled={!image || processing}
+            >
+              {processing ? "Aplicando..." : "Aplicar"}
+            </Button>
           </div>
         </div>
       </div>
@@ -1302,12 +1811,21 @@ function Portal({ children }: { children: React.ReactNode }) {
 }
 
 function initials(value: string) {
-  return value.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+  return value
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 function formatDate(value?: string | null) {
   if (!value) return "fecha no disponible";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "fecha no disponible";
-  return new Intl.DateTimeFormat("es", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("es", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }

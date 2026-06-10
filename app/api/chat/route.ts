@@ -1,6 +1,10 @@
 import { jsonError } from "@/lib/api";
 import { createLogger } from "@/lib/logger";
-import { getExploreGames, getGameBySlug, getSimilarGames } from "@/services/games";
+import {
+  getExploreGames,
+  getGameBySlug,
+  getSimilarGames,
+} from "@/services/games";
 import { getOptionalUserIdFromRequest } from "@/services/community";
 import { createServiceDatabaseClient } from "@/services/database";
 import { logLlmCall } from "@/services/llm-metrics";
@@ -45,20 +49,36 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Texto libre (título). Opcional." },
+          query: {
+            type: "string",
+            description: "Texto libre (título). Opcional.",
+          },
           sort: {
             type: "string",
             enum: ["popular", "score", "recent", "upcoming", "reviewed"],
             description:
-              "'upcoming' para próximos lanzamientos, 'recent' para novedades, 'score' para mejor valorados, 'popular' para más populares, 'reviewed' para más reseñados."
+              "'upcoming' para próximos lanzamientos, 'recent' para novedades, 'score' para mejor valorados, 'popular' para más populares, 'reviewed' para más reseñados.",
           },
-          platform: { type: "string", description: "Ej. 'PC', 'PlayStation 5'." },
-          genre: { type: "string", description: "Ej. 'RPG', 'Shooter', 'Indie'." },
-          year: { type: ["integer", "string"], description: "Año de lanzamiento (número, p. ej. 2026)." },
-          limit: { type: ["integer", "string"], description: "Resultados, número entero entre 1 y 15. Por defecto 8." }
-        }
-      }
-    }
+          platform: {
+            type: "string",
+            description: "Ej. 'PC', 'PlayStation 5'.",
+          },
+          genre: {
+            type: "string",
+            description: "Ej. 'RPG', 'Shooter', 'Indie'.",
+          },
+          year: {
+            type: ["integer", "string"],
+            description: "Año de lanzamiento (número, p. ej. 2026).",
+          },
+          limit: {
+            type: ["integer", "string"],
+            description:
+              "Resultados, número entero entre 1 y 15. Por defecto 8.",
+          },
+        },
+      },
+    },
   },
   {
     type: "function",
@@ -69,11 +89,14 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          slug: { type: "string", description: "Slug del juego (devuelto por search_games)." }
+          slug: {
+            type: "string",
+            description: "Slug del juego (devuelto por search_games).",
+          },
         },
-        required: ["slug"]
-      }
-    }
+        required: ["slug"],
+      },
+    },
   },
   {
     type: "function",
@@ -84,13 +107,19 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          slug: { type: "string", description: "Slug del juego de referencia." },
-          limit: { type: ["integer", "string"], description: "Número entero entre 1 y 10. Por defecto 6." }
+          slug: {
+            type: "string",
+            description: "Slug del juego de referencia.",
+          },
+          limit: {
+            type: ["integer", "string"],
+            description: "Número entero entre 1 y 10. Por defecto 6.",
+          },
         },
-        required: ["slug"]
-      }
-    }
-  }
+        required: ["slug"],
+      },
+    },
+  },
 ] as const;
 
 export async function POST(request: Request) {
@@ -106,7 +135,7 @@ export async function POST(request: Request) {
     return jsonError(
       `Has hecho demasiadas preguntas. Vuelve a intentarlo en ${rate.retryAfterSec}s.`,
       429,
-      { retryAfter: rate.retryAfterSec }
+      { retryAfter: rate.retryAfterSec },
     );
   }
 
@@ -119,18 +148,24 @@ export async function POST(request: Request) {
 
   const incoming = parseMessages(payload);
   if (!incoming) return jsonError("Mensajes inválidos.", 400);
-  if (incoming.length === 0) return jsonError("No hay mensajes que procesar.", 400);
+  if (incoming.length === 0)
+    return jsonError("No hay mensajes que procesar.", 400);
 
   const userId = await getOptionalUserIdFromRequest(request).catch(() => null);
   const userContext = userId ? await buildUserContext(request, userId) : null;
   const systemPrompt = buildSystemPrompt(userContext);
-  const conversation: ChatMessage[] = [{ role: "system", content: systemPrompt }, ...incoming];
+  const conversation: ChatMessage[] = [
+    { role: "system", content: systemPrompt },
+    ...incoming,
+  ];
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
       const send = (event: { type: string; [k: string]: unknown }) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+        );
       };
 
       // Initial padding + open event forces browsers and any intermediate proxies to flush the
@@ -157,7 +192,7 @@ export async function POST(request: Request) {
             conversation,
             send,
             disableTools || round === MAX_TOOL_ROUNDS - 1,
-            userId
+            userId,
           );
 
           if (decision.kind === "done") {
@@ -191,7 +226,8 @@ export async function POST(request: Request) {
             if (emptyRetries >= 1) {
               send({
                 type: "error",
-                message: "El asistente no devolvió respuesta. Intenta reformular la pregunta."
+                message:
+                  "El asistente no devolvió respuesta. Intenta reformular la pregunta.",
               });
               clearInterval(heartbeat);
               controller.close();
@@ -202,20 +238,26 @@ export async function POST(request: Request) {
             conversation.push({
               role: "system",
               content:
-                "Tu respuesta anterior estuvo vacía. Responde ahora al usuario en texto, usando las herramientas si necesitas datos del catálogo."
+                "Tu respuesta anterior estuvo vacía. Responde ahora al usuario en texto, usando las herramientas si necesitas datos del catálogo.",
             });
             continue;
           }
           // kind === "tool" → loop continues with tool results already pushed into `conversation`
         }
-        send({ type: "error", message: "El asistente no pudo completar la consulta." });
+        send({
+          type: "error",
+          message: "El asistente no pudo completar la consulta.",
+        });
         clearInterval(heartbeat);
         controller.close();
       } catch (error) {
         log.error("chat stream failed", { error });
         clearInterval(heartbeat);
         try {
-          send({ type: "error", message: "Error inesperado al consultar el asistente." });
+          send({
+            type: "error",
+            message: "Error inesperado al consultar el asistente.",
+          });
         } catch {
           // controller may already be closed
         }
@@ -225,7 +267,7 @@ export async function POST(request: Request) {
           // already closed
         }
       }
-    }
+    },
   });
 
   return new Response(stream, {
@@ -233,8 +275,8 @@ export async function POST(request: Request) {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
-      "X-Accel-Buffering": "no"
-    }
+      "X-Accel-Buffering": "no",
+    },
   });
 }
 
@@ -250,7 +292,7 @@ async function runOneStep(
   conversation: ChatMessage[],
   send: (event: { type: string; [k: string]: unknown }) => void,
   forceNoTools: boolean,
-  userId: string | null
+  userId: string | null,
 ): Promise<StepResult> {
   const requestBody = {
     model: DEFAULT_MODEL,
@@ -260,26 +302,29 @@ async function runOneStep(
     tools: forceNoTools ? undefined : TOOLS,
     tool_choice: forceNoTools ? undefined : "auto",
     stream: true,
-    stream_options: { include_usage: true }
+    stream_options: { include_usage: true },
   };
   log.debug("groq request", {
     messageCount: conversation.length,
     withTools: !forceNoTools,
-    lastRole: conversation[conversation.length - 1]?.role
+    lastRole: conversation[conversation.length - 1]?.role,
   });
   const startedAt = Date.now();
   const response = await fetch(GROQ_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
+      Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify(requestBody)
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok || !response.body) {
     const text = await response.text().catch(() => "");
-    log.warn("groq error", { status: response.status, body: text.slice(0, 500) });
+    log.warn("groq error", {
+      status: response.status,
+      body: text.slice(0, 500),
+    });
     void logLlmCall({
       scope: "chat",
       outcome: "error",
@@ -287,12 +332,18 @@ async function runOneStep(
       model: DEFAULT_MODEL,
       latencyMs: Date.now() - startedAt,
       httpStatus: response.status,
-      errorCode: `http_${response.status}`
+      errorCode: `http_${response.status}`,
     });
     if (response.status === 429) {
-      return { kind: "error", message: "El proveedor LLM está saturado. Espera unos segundos." };
+      return {
+        kind: "error",
+        message: "El proveedor LLM está saturado. Espera unos segundos.",
+      };
     }
-    return { kind: "error", message: "El asistente no está disponible ahora mismo." };
+    return {
+      kind: "error",
+      message: "El asistente no está disponible ahora mismo.",
+    };
   }
 
   const reader = response.body.getReader();
@@ -338,11 +389,15 @@ async function runOneStep(
           log.warn("groq inline error", {
             error: upstreamError,
             code: parsed?.error?.code,
-            failedGeneration: String(parsed?.error?.failed_generation ?? "").slice(0, 500)
+            failedGeneration: String(
+              parsed?.error?.failed_generation ?? "",
+            ).slice(0, 500),
           });
         } catch {
           upstreamError = "Error del proveedor LLM.";
-          log.warn("groq inline error (unparseable)", { raw: data.slice(0, 500) });
+          log.warn("groq inline error (unparseable)", {
+            raw: data.slice(0, 500),
+          });
         }
         continue;
       }
@@ -355,8 +410,11 @@ async function runOneStep(
       }
 
       if (json.usage && typeof json.usage === "object") {
-        promptTokens = Number(json.usage.prompt_tokens ?? promptTokens ?? 0) || promptTokens;
-        completionTokens = Number(json.usage.completion_tokens ?? completionTokens ?? 0) || completionTokens;
+        promptTokens =
+          Number(json.usage.prompt_tokens ?? promptTokens ?? 0) || promptTokens;
+        completionTokens =
+          Number(json.usage.completion_tokens ?? completionTokens ?? 0) ||
+          completionTokens;
       }
 
       const choice = json.choices?.[0];
@@ -371,10 +429,15 @@ async function runOneStep(
       if (Array.isArray(delta.tool_calls)) {
         for (const tc of delta.tool_calls) {
           const index = typeof tc.index === "number" ? tc.index : 0;
-          const entry = toolCallsMap.get(index) ?? { id: "", name: "", argumentsText: "" };
+          const entry = toolCallsMap.get(index) ?? {
+            id: "",
+            name: "",
+            argumentsText: "",
+          };
           if (tc.id) entry.id = tc.id;
           if (tc.function?.name) entry.name = tc.function.name;
-          if (tc.function?.arguments) entry.argumentsText += tc.function.arguments;
+          if (tc.function?.arguments)
+            entry.argumentsText += tc.function.arguments;
           toolCallsMap.set(index, entry);
         }
       }
@@ -383,14 +446,16 @@ async function runOneStep(
     }
   }
 
-  const toolCalls = Array.from(toolCallsMap.values()).filter((c) => c.id && c.name);
+  const toolCalls = Array.from(toolCallsMap.values()).filter(
+    (c) => c.id && c.name,
+  );
 
   log.debug("step finished", {
     finishReason,
     toolCallCount: toolCalls.length,
     textLength: assistantText.length,
     firstToolName: toolCalls[0]?.name,
-    upstreamError
+    upstreamError,
   });
 
   void logLlmCall({
@@ -402,7 +467,7 @@ async function runOneStep(
     httpStatus: response.status,
     tokensIn: promptTokens,
     tokensOut: completionTokens,
-    errorCode: upstreamError ? "upstream-error" : null
+    errorCode: upstreamError ? "upstream-error" : null,
   });
 
   if (upstreamError) {
@@ -412,11 +477,14 @@ async function runOneStep(
       conversation.push({
         role: "system",
         content:
-          "Tu última llamada a una herramienta falló por argumentos inválidos. NO vuelvas a llamar a ninguna herramienta. Responde al usuario directamente en texto con lo que sepas; si no tienes datos suficientes, dilo y sugiere consultar el catálogo manualmente."
+          "Tu última llamada a una herramienta falló por argumentos inválidos. NO vuelvas a llamar a ninguna herramienta. Responde al usuario directamente en texto con lo que sepas; si no tienes datos suficientes, dilo y sugiere consultar el catálogo manualmente.",
       });
       return { kind: "retry-no-tools" };
     }
-    return { kind: "error", message: "El asistente devolvió un error: " + upstreamError };
+    return {
+      kind: "error",
+      message: "El asistente devolvió un error: " + upstreamError,
+    };
   }
 
   if (toolCalls.length === 0) {
@@ -430,8 +498,8 @@ async function runOneStep(
     tool_calls: toolCalls.map((c) => ({
       id: c.id,
       type: "function",
-      function: { name: c.name, arguments: c.argumentsText || "{}" }
-    }))
+      function: { name: c.name, arguments: c.argumentsText || "{}" },
+    })),
   });
 
   for (const call of toolCalls) {
@@ -441,7 +509,7 @@ async function runOneStep(
       role: "tool",
       tool_call_id: call.id,
       name: call.name,
-      content: JSON.stringify(result)
+      content: JSON.stringify(result),
     });
   }
 
@@ -473,12 +541,19 @@ async function searchGamesTool(args: Record<string, unknown>) {
   const year = clampInt(args.year, 0, 1970, 2100) || undefined;
 
   try {
-    const result = await getExploreGames({ query, sort, platform, genre, year, pageSize: limit });
+    const result = await getExploreGames({
+      query,
+      sort,
+      platform,
+      genre,
+      year,
+      pageSize: limit,
+    });
     return {
       count: result.count,
       source: result.source,
       games: result.games.slice(0, limit).map(summarizeGame),
-      warning: result.error
+      warning: result.error,
     };
   } catch (error) {
     log.warn("search_games tool failed", { error });
@@ -509,7 +584,7 @@ async function getSimilarGamesTool(args: Record<string, unknown>) {
     const similar = await getSimilarGames(base, limit);
     return {
       reference: { title: base.title, slug: base.slug },
-      games: similar.map(summarizeGame)
+      games: similar.map(summarizeGame),
     };
   } catch (error) {
     log.warn("get_similar_games tool failed", { error });
@@ -530,7 +605,7 @@ function summarizeGame(game: Game) {
     publisher: game.publisher,
     userScore: game.userScore || null,
     criticScore: game.criticScore,
-    summary: truncate(game.summary, 220)
+    summary: truncate(game.summary, 220),
   };
 }
 
@@ -538,7 +613,7 @@ function detailedGame(game: Game) {
   return {
     ...summarizeGame(game),
     summary: truncate(game.summary, 600),
-    modes: game.modes
+    modes: game.modes,
   };
 }
 
@@ -556,10 +631,13 @@ type InferredIntent = {
 const PLATFORM_KEYWORDS: Array<{ match: RegExp; value: string }> = [
   { match: /\b(ps5|playstation\s*5)\b/i, value: "PlayStation 5" },
   { match: /\b(ps4|playstation\s*4)\b/i, value: "PlayStation 4" },
-  { match: /\b(xbox\s*series|series\s*x|series\s*s)\b/i, value: "Xbox Series X|S" },
+  {
+    match: /\b(xbox\s*series|series\s*x|series\s*s)\b/i,
+    value: "Xbox Series X|S",
+  },
   { match: /\b(xbox\s*one)\b/i, value: "Xbox One" },
   { match: /\b(switch|nintendo)\b/i, value: "Nintendo Switch" },
-  { match: /\b(pc|steam|windows)\b/i, value: "PC (Microsoft Windows)" }
+  { match: /\b(pc|steam|windows)\b/i, value: "PC (Microsoft Windows)" },
 ];
 
 const GENRE_KEYWORDS: Array<{ match: RegExp; value: string }> = [
@@ -574,7 +652,7 @@ const GENRE_KEYWORDS: Array<{ match: RegExp; value: string }> = [
   { match: /\bterror|horror\b/i, value: "Horror" },
   { match: /\bpuzzle\b/i, value: "Puzzle" },
   { match: /\bindie\b/i, value: "Indie" },
-  { match: /\bsimulador|simulation\b/i, value: "Simulator" }
+  { match: /\bsimulador|simulation\b/i, value: "Simulator" },
 ];
 
 function inferIntentFromText(text: string): InferredIntent | null {
@@ -582,11 +660,23 @@ function inferIntentFromText(text: string): InferredIntent | null {
   if (!normalized) return null;
 
   let sort: GameSort | undefined;
-  if (/\b(salen|sale|saldra|saldran|proximo|proxim[oa]s|este mes|esta semana|prox lanzamiento|upcoming|por venir|por salir)\b/.test(normalized)) {
+  if (
+    /\b(salen|sale|saldra|saldran|proximo|proxim[oa]s|este mes|esta semana|prox lanzamiento|upcoming|por venir|por salir)\b/.test(
+      normalized,
+    )
+  ) {
     sort = "upcoming";
-  } else if (/\b(novedad|novedades|recien salid|recientes|salieron|sali[oó]|nuevo|nuevos)\b/.test(normalized)) {
+  } else if (
+    /\b(novedad|novedades|recien salid|recientes|salieron|sali[oó]|nuevo|nuevos)\b/.test(
+      normalized,
+    )
+  ) {
     sort = "recent";
-  } else if (/\b(mejor|mejores|top|critica|criticos|highest|valorados|puntuad[oa]s|score)\b/.test(normalized)) {
+  } else if (
+    /\b(mejor|mejores|top|critica|criticos|highest|valorados|puntuad[oa]s|score)\b/.test(
+      normalized,
+    )
+  ) {
     sort = "score";
   } else if (/\b(popular|populares|trending|jugados)\b/.test(normalized)) {
     sort = "popular";
@@ -611,10 +701,13 @@ function inferIntentFromText(text: string): InferredIntent | null {
   }
 
   let limit = 8;
-  const numMatch = text.match(/\btop\s*(\d{1,2})\b|\b(\d{1,2})\s*mejores?\b|\b(\d{1,2})\s*juegos\b/i);
+  const numMatch = text.match(
+    /\btop\s*(\d{1,2})\b|\b(\d{1,2})\s*mejores?\b|\b(\d{1,2})\s*juegos\b/i,
+  );
   if (numMatch) {
     const parsed = Number(numMatch[1] ?? numMatch[2] ?? numMatch[3]);
-    if (Number.isFinite(parsed) && parsed > 0) limit = Math.min(Math.max(parsed, 3), 15);
+    if (Number.isFinite(parsed) && parsed > 0)
+      limit = Math.min(Math.max(parsed, 3), 15);
   }
 
   let year: number | undefined;
@@ -622,7 +715,10 @@ function inferIntentFromText(text: string): InferredIntent | null {
   if (yearMatch) year = Number(yearMatch[0]);
 
   // If we found nothing strong, only rescue when the message clearly asks about games.
-  const hasGameKeyword = /\b(juego|juegos|game|games|titulo|titulos|saga|lanzamiento)\b/.test(normalized);
+  const hasGameKeyword =
+    /\b(juego|juegos|game|games|titulo|titulos|saga|lanzamiento)\b/.test(
+      normalized,
+    );
   if (!sort && !platform && !genre && !hasGameKeyword) return null;
 
   // Default to "score" if intent is "best/top" implied by context but not detected.
@@ -642,7 +738,7 @@ function inferSimilarityQuery(text: string) {
 
   const patterns = [
     /(?:recom[ií]endame|recomienda|sugiere|busca|dime|quiero|necesito|alg[oú]n|un|una)?\s*(?:juego|juegos|t[ií]tulo|titulo|game|games)?\s*(?:parecido(?:s)? a|similar(?:es)? a|como)\s+(.+?)(?:\?|\.|,|;|$)/i,
-    /(?:algo|algo parecido|algo similar)\s+a\s+(.+?)(?:\?|\.|,|;|$)/i
+    /(?:algo|algo parecido|algo similar)\s+a\s+(.+?)(?:\?|\.|,|;|$)/i,
   ];
 
   for (const pattern of patterns) {
@@ -650,7 +746,10 @@ function inferSimilarityQuery(text: string) {
     if (match?.[1]) {
       const query = match[1]
         .replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, "")
-        .replace(/\b(que|qué|similar|parecido|parecida|parecidos|parecidas)\b.*$/i, "")
+        .replace(
+          /\b(que|qué|similar|parecido|parecida|parecidos|parecidas)\b.*$/i,
+          "",
+        )
         .trim();
       if (query) return query;
     }
@@ -661,14 +760,17 @@ function inferSimilarityQuery(text: string) {
 
 async function attemptIntentRescue(
   conversation: ChatMessage[],
-  send: (event: { type: string; [k: string]: unknown }) => void
+  send: (event: { type: string; [k: string]: unknown }) => void,
 ): Promise<boolean> {
   const lastUser = [...conversation].reverse().find((m) => m.role === "user");
   if (!lastUser?.content) return false;
 
   const similarityQuery = inferSimilarityQuery(lastUser.content);
   if (similarityQuery) {
-    log.info("intent rescue", { tool: "get_similar_games", query: similarityQuery });
+    log.info("intent rescue", {
+      tool: "get_similar_games",
+      query: similarityQuery,
+    });
     send({ type: "tool", name: "get_similar_games" });
 
     const reference = await resolveGameReference(similarityQuery);
@@ -682,9 +784,16 @@ async function attemptIntentRescue(
           {
             id: syntheticId,
             type: "function",
-            function: { name: "search_games", arguments: JSON.stringify({ query: similarityQuery, sort: "popular", limit: 5 }) }
-          }
-        ]
+            function: {
+              name: "search_games",
+              arguments: JSON.stringify({
+                query: similarityQuery,
+                sort: "popular",
+                limit: 5,
+              }),
+            },
+          },
+        ],
       });
       conversation.push({
         role: "tool",
@@ -692,8 +801,8 @@ async function attemptIntentRescue(
         name: "search_games",
         content: JSON.stringify({
           error: "No pude identificar el juego de referencia.",
-          query: similarityQuery
-        })
+          query: similarityQuery,
+        }),
       });
       return true;
     }
@@ -706,9 +815,12 @@ async function attemptIntentRescue(
         {
           id: syntheticId,
           type: "function",
-          function: { name: "get_similar_games", arguments: JSON.stringify({ slug: reference.slug, limit: 6 }) }
-        }
-      ]
+          function: {
+            name: "get_similar_games",
+            arguments: JSON.stringify({ slug: reference.slug, limit: 6 }),
+          },
+        },
+      ],
     });
     conversation.push({
       role: "tool",
@@ -716,8 +828,8 @@ async function attemptIntentRescue(
       name: "get_similar_games",
       content: JSON.stringify({
         reference: { title: reference.title, slug: reference.slug },
-        games: similar.map(summarizeGame)
-      })
+        games: similar.map(summarizeGame),
+      }),
     });
     return true;
   }
@@ -738,26 +850,34 @@ async function attemptIntentRescue(
       {
         id: syntheticId,
         type: "function",
-        function: { name: intent.tool, arguments: JSON.stringify(intent.args) }
-      }
-    ]
+        function: { name: intent.tool, arguments: JSON.stringify(intent.args) },
+      },
+    ],
   });
   conversation.push({
     role: "tool",
     tool_call_id: syntheticId,
     name: intent.tool,
-    content: JSON.stringify(result)
+    content: JSON.stringify(result),
   });
   return true;
 }
 
 async function resolveGameReference(query: string) {
   try {
-    const result = await getExploreGames({ query, pageSize: 5, sort: "popular" });
+    const result = await getExploreGames({
+      query,
+      pageSize: 5,
+      sort: "popular",
+    });
     const normalizedQuery = normalizeTitle(query);
     const match =
-      result.games.find((game) => normalizeTitle(game.title) === normalizedQuery) ??
-      result.games.find((game) => normalizeTitle(game.title).includes(normalizedQuery)) ??
+      result.games.find(
+        (game) => normalizeTitle(game.title) === normalizedQuery,
+      ) ??
+      result.games.find((game) =>
+        normalizeTitle(game.title).includes(normalizedQuery),
+      ) ??
       result.games[0];
 
     return match ?? null;
@@ -796,7 +916,13 @@ function parseMessages(payload: unknown): ChatMessage[] | null {
 }
 
 function parseSort(value: unknown): GameSort | undefined {
-  const valid: GameSort[] = ["popular", "score", "recent", "upcoming", "reviewed"];
+  const valid: GameSort[] = [
+    "popular",
+    "score",
+    "recent",
+    "upcoming",
+    "reviewed",
+  ];
   if (typeof value !== "string") return undefined;
   return valid.find((sort) => sort === value);
 }
@@ -834,7 +960,10 @@ function takeRateToken(key: string) {
     return { ok: true as const };
   }
   if (bucket.count >= RATE_LIMIT_MAX_REQUESTS) {
-    return { ok: false as const, retryAfterSec: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+    return {
+      ok: false as const,
+      retryAfterSec: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)),
+    };
   }
   bucket.count++;
   return { ok: true as const };
@@ -847,7 +976,10 @@ type UserContext = {
   recentTitles: string[];
 };
 
-async function buildUserContext(_request: Request, userId: string): Promise<UserContext | null> {
+async function buildUserContext(
+  _request: Request,
+  userId: string,
+): Promise<UserContext | null> {
   try {
     const client = createServiceDatabaseClient();
     const [{ data: profile }, { data: library }] = await Promise.all([
@@ -861,10 +993,12 @@ async function buildUserContext(_request: Request, userId: string): Promise<User
         .select("status,updated_at,games(title)")
         .eq("user_id", userId)
         .order("updated_at", { ascending: false })
-        .limit(8)
+        .limit(8),
     ]);
 
-    const recentTitles = ((library ?? []) as Array<{ games?: { title?: string } | null }>)
+    const recentTitles = (
+      (library ?? []) as Array<{ games?: { title?: string } | null }>
+    )
       .map((row) => row?.games?.title)
       .filter((title): title is string => Boolean(title));
 
@@ -872,7 +1006,7 @@ async function buildUserContext(_request: Request, userId: string): Promise<User
       displayName: profile?.display_name ?? undefined,
       favoritePlatforms: (profile?.favorite_platforms ?? []) as string[],
       favoriteGenres: (profile?.favorite_genres ?? []) as string[],
-      recentTitles
+      recentTitles,
     };
   } catch (error) {
     log.debug("user context unavailable", { error });
@@ -896,22 +1030,32 @@ function buildSystemPrompt(user: UserContext | null) {
     "Si una pregunta NO requiere catálogo (lore, historia, mecánicas, opiniones generales), responde directamente sin llamar a herramientas.",
     "",
     "Reglas de formato:",
-    "- Listas de juegos: usa viñetas markdown. Formato sugerido: \"- **Título** — año, plataforma. Breve nota.\".",
+    '- Listas de juegos: usa viñetas markdown. Formato sugerido: "- **Título** — año, plataforma. Breve nota.".',
     "- Cuando una herramienta haya devuelto un `slug` para un juego que vas a citar, añade `(slug: <slug-exacto>)` justo después de **Título** para que la web pueda enlazar a la ficha. Si NO conoces el slug, simplemente omite el marcador (no lo inventes).",
     "- Usa **negritas** para los nombres de juegos.",
     "- Sé conciso y directo; sin preámbulos largos.",
     "- Nunca inventes fechas, puntuaciones o títulos. Si una herramienta no devuelve resultados, dilo claramente.",
     "- Responde SIEMPRE con texto al final del flujo. Nunca termines sin contenido para el usuario.",
     "",
-    `Fecha actual: ${today}.`
+    `Fecha actual: ${today}.`,
   ];
 
   if (user) {
-    parts.push("", "Contexto del usuario autenticado (úsalo solo si es relevante a la pregunta):");
+    parts.push(
+      "",
+      "Contexto del usuario autenticado (úsalo solo si es relevante a la pregunta):",
+    );
     if (user.displayName) parts.push(`- Nombre: ${user.displayName}.`);
-    if (user.favoritePlatforms.length) parts.push(`- Plataformas favoritas: ${user.favoritePlatforms.join(", ")}.`);
-    if (user.favoriteGenres.length) parts.push(`- Géneros favoritos: ${user.favoriteGenres.join(", ")}.`);
-    if (user.recentTitles.length) parts.push(`- Juegos recientes en su biblioteca: ${user.recentTitles.slice(0, 6).join(", ")}.`);
+    if (user.favoritePlatforms.length)
+      parts.push(
+        `- Plataformas favoritas: ${user.favoritePlatforms.join(", ")}.`,
+      );
+    if (user.favoriteGenres.length)
+      parts.push(`- Géneros favoritos: ${user.favoriteGenres.join(", ")}.`);
+    if (user.recentTitles.length)
+      parts.push(
+        `- Juegos recientes en su biblioteca: ${user.recentTitles.slice(0, 6).join(", ")}.`,
+      );
   }
 
   return parts.join("\n");

@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
       averageScore: 0,
       ratingCount: 0,
       userRating: null,
-      comments: []
+      comments: [],
     });
   }
 
@@ -36,15 +36,21 @@ export async function GET(request: Request, { params }: { params: Params }) {
           .eq("game_id", game.id)
           .eq("user_id", userId)
           .maybeSingle()
-      : Promise.resolve({ data: null, error: null })
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   if (commentsResult.error) {
-    return NextResponse.json({ error: commentsResult.error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: commentsResult.error.message },
+      { status: 500 },
+    );
   }
 
   if (userRatingResult.error) {
-    return NextResponse.json({ error: userRatingResult.error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: userRatingResult.error.message },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({
@@ -53,13 +59,18 @@ export async function GET(request: Request, { params }: { params: Params }) {
     userRating: userRatingResult.data
       ? {
           score: Number(userRatingResult.data.score),
-          comment: userRatingResult.data.comment_body ?? ""
+          comment: userRatingResult.data.comment_body ?? "",
         }
       : null,
     comments: (commentsResult.data ?? [])
-      .filter((rating: any) => typeof rating.comment_body === "string" && rating.comment_body.trim())
+      .filter(
+        (rating: any) =>
+          typeof rating.comment_body === "string" && rating.comment_body.trim(),
+      )
       .map((rating: any) => {
-        const profile = Array.isArray(rating.profiles) ? rating.profiles[0] : rating.profiles;
+        const profile = Array.isArray(rating.profiles)
+          ? rating.profiles[0]
+          : rating.profiles;
 
         return {
           id: rating.id,
@@ -68,11 +79,12 @@ export async function GET(request: Request, { params }: { params: Params }) {
           updatedAt: rating.updated_at,
           user: {
             username: profile?.username ?? "usuario",
-            displayName: profile?.display_name ?? profile?.username ?? "Usuario",
-            avatarUrl: profile?.avatar_url ?? null
-          }
+            displayName:
+              profile?.display_name ?? profile?.username ?? "Usuario",
+            avatarUrl: profile?.avatar_url ?? null,
+          },
         };
-      })
+      }),
   });
 }
 
@@ -81,13 +93,19 @@ export async function POST(request: Request, { params }: { params: Params }) {
   const token = getBearerToken(request);
 
   if (!token) {
-    return NextResponse.json({ error: "Debes iniciar sesión para valorar un juego." }, { status: 401 });
+    return NextResponse.json(
+      { error: "Debes iniciar sesión para valorar un juego." },
+      { status: 401 },
+    );
   }
 
   const user = await getUserFromToken(token);
 
   if (!user) {
-    return NextResponse.json({ error: "La sesión no es válida o ha caducado." }, { status: 401 });
+    return NextResponse.json(
+      { error: "La sesión no es válida o ha caducado." },
+      { status: 401 },
+    );
   }
 
   const payload = await request.json().catch(() => null);
@@ -95,20 +113,28 @@ export async function POST(request: Request, { params }: { params: Params }) {
   const comment = String(payload?.comment ?? "").trim();
 
   if (!Number.isInteger(score) || score < 1 || score > 10) {
-    return NextResponse.json({ error: "La puntuación debe estar entre 1 y 10." }, { status: 400 });
+    return NextResponse.json(
+      { error: "La puntuación debe estar entre 1 y 10." },
+      { status: 400 },
+    );
   }
 
-  if (comment.length < MIN_COMMENT_LENGTH || comment.length > MAX_COMMENT_LENGTH) {
+  if (
+    comment.length < MIN_COMMENT_LENGTH ||
+    comment.length > MAX_COMMENT_LENGTH
+  ) {
     return NextResponse.json(
-      { error: `El comentario debe tener entre ${MIN_COMMENT_LENGTH} y ${MAX_COMMENT_LENGTH} caracteres.` },
-      { status: 400 }
+      {
+        error: `El comentario debe tener entre ${MIN_COMMENT_LENGTH} y ${MAX_COMMENT_LENGTH} caracteres.`,
+      },
+      { status: 400 },
     );
   }
 
   const serviceClient = createServiceDatabaseClient();
   const [profileResult, gameResult] = await Promise.all([
     ensureProfile(serviceClient, user),
-    ensureGame(serviceClient, slug, payload?.game)
+    ensureGame(serviceClient, slug, payload?.game),
   ]);
 
   if (profileResult.error) {
@@ -116,7 +142,10 @@ export async function POST(request: Request, { params }: { params: Params }) {
   }
 
   if (gameResult.error || !gameResult.game) {
-    return NextResponse.json({ error: gameResult.error ?? "No se pudo preparar el juego." }, { status: 500 });
+    return NextResponse.json(
+      { error: gameResult.error ?? "No se pudo preparar el juego." },
+      { status: 500 },
+    );
   }
 
   const now = new Date().toISOString();
@@ -126,9 +155,9 @@ export async function POST(request: Request, { params }: { params: Params }) {
       user_id: user.id,
       score,
       comment_body: comment,
-      updated_at: now
+      updated_at: now,
     },
-    { onConflict: "game_id,user_id" }
+    { onConflict: "game_id,user_id" },
   );
 
   if (ratingError) {
@@ -140,11 +169,11 @@ export async function POST(request: Request, { params }: { params: Params }) {
     userId: user.id,
     gameId: gameResult.game.id,
     type: "rating",
-    message: `valoró ${slug}`
+    message: `valoró ${slug}`,
   }).catch(() => null);
   await syncDefaultProfileLists(serviceClient, {
     id: user.id,
-    username: user.user_metadata.username
+    username: user.user_metadata.username,
   }).catch(() => null);
 
   if (stats.error) {
@@ -154,11 +183,14 @@ export async function POST(request: Request, { params }: { params: Params }) {
   return NextResponse.json({
     ok: true,
     averageScore: stats.averageScore,
-    ratingCount: stats.ratingCount
+    ratingCount: stats.ratingCount,
   });
 }
 
-async function getGameBySlug(serviceClient: ReturnType<typeof createServiceDatabaseClient>, slug: string) {
+async function getGameBySlug(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  slug: string,
+) {
   const { data, error } = await serviceClient
     .from("games")
     .select("id, user_score, rating_count")
@@ -175,7 +207,7 @@ async function getGameBySlug(serviceClient: ReturnType<typeof createServiceDatab
 async function ensureGame(
   serviceClient: ReturnType<typeof createServiceDatabaseClient>,
   slug: string,
-  gamePayload: any
+  gamePayload: any,
 ) {
   const existing = await getGameBySlug(serviceClient, slug);
 
@@ -184,7 +216,9 @@ async function ensureGame(
   }
 
   const title = String(gamePayload?.title ?? slug).trim() || slug;
-  const status = VALID_GAME_STATUSES.has(gamePayload?.status) ? gamePayload.status : "released";
+  const status = VALID_GAME_STATUSES.has(gamePayload?.status)
+    ? gamePayload.status
+    : "released";
   const releaseYear = Number(gamePayload?.releaseYear);
 
   const { data, error } = await serviceClient
@@ -193,10 +227,11 @@ async function ensureGame(
       slug,
       title,
       summary: gamePayload?.summary ? String(gamePayload.summary) : null,
-      release_year: Number.isInteger(releaseYear) && releaseYear > 0 ? releaseYear : null,
+      release_year:
+        Number.isInteger(releaseYear) && releaseYear > 0 ? releaseYear : null,
       status,
       cover_url: gamePayload?.coverUrl ? String(gamePayload.coverUrl) : null,
-      hero_url: gamePayload?.heroUrl ? String(gamePayload.heroUrl) : null
+      hero_url: gamePayload?.heroUrl ? String(gamePayload.heroUrl) : null,
     })
     .select("id, user_score, rating_count")
     .single();
@@ -208,7 +243,10 @@ async function ensureGame(
   return { game: data };
 }
 
-async function ensureProfile(serviceClient: ReturnType<typeof createServiceDatabaseClient>, user: any) {
+async function ensureProfile(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  user: any,
+) {
   const { data: existing, error: existingError } = await serviceClient
     .from("profiles")
     .select("id")
@@ -224,14 +262,23 @@ async function ensureProfile(serviceClient: ReturnType<typeof createServiceDatab
   }
 
   const baseUsername = getSafeUsername(
-    user.user_metadata?.username ?? user.email?.split("@")[0] ?? `user-${String(user.id).slice(0, 8)}`
+    user.user_metadata?.username ??
+      user.email?.split("@")[0] ??
+      `user-${String(user.id).slice(0, 8)}`,
   );
-  const username = await getAvailableUsername(serviceClient, baseUsername, user.id);
+  const username = await getAvailableUsername(
+    serviceClient,
+    baseUsername,
+    user.id,
+  );
 
   const { error } = await serviceClient.from("profiles").insert({
     id: user.id,
     username,
-    display_name: user.user_metadata?.display_name ?? user.user_metadata?.username ?? username
+    display_name:
+      user.user_metadata?.display_name ??
+      user.user_metadata?.username ??
+      username,
   });
 
   return { error: error?.message ?? null };
@@ -240,7 +287,7 @@ async function ensureProfile(serviceClient: ReturnType<typeof createServiceDatab
 async function getAvailableUsername(
   serviceClient: ReturnType<typeof createServiceDatabaseClient>,
   baseUsername: string,
-  userId: string
+  userId: string,
 ) {
   const { data } = await serviceClient
     .from("profiles")
@@ -267,18 +314,31 @@ function getSafeUsername(value: string) {
   return normalized || "usuario";
 }
 
-async function recalculateGameStats(serviceClient: ReturnType<typeof createServiceDatabaseClient>, gameId: string) {
-  const { data, error } = await serviceClient.from("ratings").select("score").eq("game_id", gameId);
+async function recalculateGameStats(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  gameId: string,
+) {
+  const { data, error } = await serviceClient
+    .from("ratings")
+    .select("score")
+    .eq("game_id", gameId);
 
   if (error) {
     return { error: error.message };
   }
 
-  const scores = (data ?? []).map((rating: any) => Number(rating.score)).filter((value: number) => Number.isFinite(value));
+  const scores = (data ?? [])
+    .map((rating: any) => Number(rating.score))
+    .filter((value: number) => Number.isFinite(value));
   const ratingCount = scores.length;
   const averageScore =
     ratingCount > 0
-      ? Number((scores.reduce((total: number, value: number) => total + value, 0) / ratingCount).toFixed(1))
+      ? Number(
+          (
+            scores.reduce((total: number, value: number) => total + value, 0) /
+            ratingCount
+          ).toFixed(1),
+        )
       : 0;
 
   const { error: updateError } = await serviceClient
@@ -286,7 +346,7 @@ async function recalculateGameStats(serviceClient: ReturnType<typeof createServi
     .update({
       user_score: averageScore,
       rating_count: ratingCount,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     })
     .eq("id", gameId);
 
@@ -325,11 +385,13 @@ function getBearerToken(request: Request) {
 
 async function getVisibleCommunityComments(
   serviceClient: ReturnType<typeof createServiceDatabaseClient>,
-  gameId: string
+  gameId: string,
 ) {
   const baseQuery = serviceClient
     .from("ratings")
-    .select("id, score, comment_body, updated_at, profiles:user_id(username, display_name, avatar_url)")
+    .select(
+      "id, score, comment_body, updated_at, profiles:user_id(username, display_name, avatar_url)",
+    )
     .eq("game_id", gameId)
     .not("comment_body", "is", null)
     .order("updated_at", { ascending: false });
@@ -342,7 +404,9 @@ async function getVisibleCommunityComments(
 
   return serviceClient
     .from("ratings")
-    .select("id, score, comment_body, updated_at, profiles:user_id(username, display_name, avatar_url)")
+    .select(
+      "id, score, comment_body, updated_at, profiles:user_id(username, display_name, avatar_url)",
+    )
     .eq("game_id", gameId)
     .not("comment_body", "is", null)
     .order("updated_at", { ascending: false });
@@ -354,12 +418,8 @@ function isMissingHiddenAtColumnError(message?: string) {
   }
 
   const normalized = message.toLowerCase();
-  return normalized.includes('column "hidden_at"') && normalized.includes("does not exist");
+  return (
+    normalized.includes('column "hidden_at"') &&
+    normalized.includes("does not exist")
+  );
 }
-
-
-
-
-
-
-

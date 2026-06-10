@@ -14,11 +14,12 @@ const navItems = [
   { href: "/games", label: "Juegos" },
   { href: "/rankings", label: "Rankings" },
   { href: "/rankings/top-50", label: "Top 50" },
-  { href: "/users", label: "Usuarios" }
+  { href: "/users", label: "Usuarios" },
 ];
 
 function isNavActive(pathname: string, href: string) {
-  if (href === "/games") return pathname === "/games" || pathname.startsWith("/games/");
+  if (href === "/games")
+    return pathname === "/games" || pathname.startsWith("/games/");
   if (href === "/users") return pathname === "/users";
   return pathname === href;
 }
@@ -30,7 +31,10 @@ export function Header() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const profileHref = username ? `/users/${username}` : "/me";
-  const isProfileActive = pathname === profileHref || pathname === "/me" || (username !== null && pathname === `/users/${username}`);
+  const isProfileActive =
+    pathname === profileHref ||
+    pathname === "/me" ||
+    (username !== null && pathname === `/users/${username}`);
   const isLibraryActive = pathname === "/me/library";
   const isAdmin = Boolean(session?.user?.isAdmin);
   const isAdminActive = pathname === "/admin" || pathname.startsWith("/admin/");
@@ -48,25 +52,39 @@ export function Header() {
     try {
       authClient = createBrowserAuthClient();
     } catch {
-      return () => { mounted = false; };
+      return () => {
+        mounted = false;
+      };
     }
 
     async function load(nextSession: AuthSession | null) {
       if (!mounted) return;
       setSession(nextSession);
-      if (!nextSession?.user) { setUsername(null); return; }
+      if (!nextSession?.user) {
+        setUsername(null);
+        return;
+      }
       const sessionUsername = nextSession.user.user_metadata?.username ?? null;
       setUsername(sessionUsername);
       const response = await fetch("/api/me/profile", {
-        headers: { Authorization: `Bearer ${nextSession.access_token}` }
+        headers: { Authorization: `Bearer ${nextSession.access_token}` },
       }).catch(() => null);
-      const data = response?.ok ? await response.json().catch(() => null) : null;
+      const data = response?.ok
+        ? await response.json().catch(() => null)
+        : null;
       if (mounted) setUsername(data?.profile?.username ?? sessionUsername);
     }
 
     authClient.auth.getSession().then(({ data }) => load(data.session));
-    const { data: { subscription } } = authClient.auth.onAuthStateChange((_event, nextSession) => load(nextSession));
-    return () => { mounted = false; subscription.unsubscribe(); };
+    const {
+      data: { subscription },
+    } = authClient.auth.onAuthStateChange((_event, nextSession) =>
+      load(nextSession),
+    );
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   async function signOut() {
@@ -74,7 +92,9 @@ export function Header() {
       const authClient = createBrowserAuthClient();
       await authClient.auth.signOut();
       window.location.href = "/";
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   return (
@@ -83,20 +103,22 @@ export function Header() {
         "fixed inset-x-0 top-0 z-50 motion-safe:transition-all motion-safe:duration-300",
         scrolled
           ? "border-b border-white/[0.08] bg-background/96 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5),0_1px_0_rgba(59,130,246,0.07)]"
-          : "border-b border-white/[0.04] bg-background/75 backdrop-blur-xl"
+          : "border-b border-white/[0.04] bg-background/75 backdrop-blur-xl",
       )}
     >
       {/* Gradient accent line at top */}
       <div
         className={cn(
           "absolute inset-x-0 top-0 h-px motion-safe:transition-opacity motion-safe:duration-500",
-          scrolled ? "opacity-60" : "opacity-30"
+          scrolled ? "opacity-60" : "opacity-30",
         )}
-        style={{ background: "linear-gradient(90deg, transparent, rgba(59,130,246,0.7) 40%, rgba(139,92,246,0.7) 60%, transparent)" }}
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, rgba(59,130,246,0.7) 40%, rgba(139,92,246,0.7) 60%, transparent)",
+        }}
       />
 
       <div className="container-page flex h-16 items-center gap-5 lg:h-[68px]">
-
         {/* Logo */}
         <Link
           href="/"
@@ -108,7 +130,10 @@ export function Header() {
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Principal">
+        <nav
+          className="hidden items-center gap-0.5 lg:flex"
+          aria-label="Principal"
+        >
           {navItems.map((item) => {
             const active = isNavActive(pathname, item.href);
             return (
@@ -119,13 +144,16 @@ export function Header() {
                   "relative rounded-lg px-3.5 py-2 text-[13.5px] font-medium motion-safe:transition-all motion-safe:duration-150",
                   active
                     ? "bg-white/[0.09] text-foreground"
-                    : "text-muted hover:bg-white/[0.06] hover:text-foreground"
+                    : "text-muted hover:bg-white/[0.06] hover:text-foreground",
                 )}
               >
                 {active && (
                   <span
                     className="absolute inset-x-3.5 bottom-[3px] h-px"
-                    style={{ background: "linear-gradient(90deg, rgba(59,130,246,0.7), rgba(139,92,246,0.7))" }}
+                    style={{
+                      background:
+                        "linear-gradient(90deg, rgba(59,130,246,0.7), rgba(139,92,246,0.7))",
+                    }}
                   />
                 )}
                 {item.label}
@@ -151,7 +179,7 @@ export function Header() {
                     "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold motion-safe:transition-colors motion-safe:duration-150",
                     isAdminActive
                       ? "bg-[#A3E635]/15 text-[#A3E635]"
-                      : "text-[#A3E635] hover:bg-[#A3E635]/10"
+                      : "text-[#A3E635] hover:bg-[#A3E635]/10",
                   )}
                 >
                   Admin
@@ -160,10 +188,20 @@ export function Header() {
                   </span>
                 </Link>
               )}
-              <Button variant={isProfileActive ? "secondary" : "ghost"} size="sm" asChild href={profileHref}>
+              <Button
+                variant={isProfileActive ? "secondary" : "ghost"}
+                size="sm"
+                asChild
+                href={profileHref}
+              >
                 Mi perfil
               </Button>
-              <Button variant={isLibraryActive ? "secondary" : "ghost"} size="sm" asChild href="/me/library">
+              <Button
+                variant={isLibraryActive ? "secondary" : "ghost"}
+                size="sm"
+                asChild
+                href="/me/library"
+              >
                 Mi biblioteca
               </Button>
               <Button variant="ghost" size="sm" onClick={signOut}>
@@ -188,7 +226,7 @@ export function Header() {
             "ml-auto flex h-9 w-9 flex-col items-center justify-center gap-[5px] rounded-lg border motion-safe:transition-all motion-safe:duration-200 md:hidden",
             open
               ? "border-white/[0.15] bg-white/[0.08]"
-              : "border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06]"
+              : "border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.06]",
           )}
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
@@ -198,19 +236,19 @@ export function Header() {
           <span
             className={cn(
               "h-px w-[15px] rounded-full bg-foreground/75 origin-center motion-safe:transition-all motion-safe:duration-300",
-              open ? "translate-y-[6px] rotate-45" : ""
+              open ? "translate-y-[6px] rotate-45" : "",
             )}
           />
           <span
             className={cn(
               "h-px w-[15px] rounded-full bg-foreground/75 motion-safe:transition-all motion-safe:duration-200",
-              open ? "opacity-0 scale-x-0" : ""
+              open ? "opacity-0 scale-x-0" : "",
             )}
           />
           <span
             className={cn(
               "h-px w-[15px] rounded-full bg-foreground/75 origin-center motion-safe:transition-all motion-safe:duration-300",
-              open ? "-translate-y-[6px] -rotate-45" : ""
+              open ? "-translate-y-[6px] -rotate-45" : "",
             )}
           />
         </button>
@@ -221,7 +259,7 @@ export function Header() {
         id="mobile-nav"
         className={cn(
           "overflow-hidden md:hidden motion-safe:transition-[max-height,opacity] motion-safe:duration-300 motion-safe:ease-in-out",
-          open ? "max-h-[540px] opacity-100" : "max-h-0 opacity-0"
+          open ? "max-h-[540px] opacity-100" : "max-h-0 opacity-0",
         )}
       >
         <div className="container-page grid gap-3 pb-5 pt-2">
@@ -238,7 +276,7 @@ export function Header() {
                     "rounded-lg px-3 py-2.5 text-sm font-medium motion-safe:transition-colors motion-safe:duration-150",
                     active
                       ? "bg-white/[0.09] text-foreground"
-                      : "text-muted hover:bg-white/[0.06] hover:text-foreground"
+                      : "text-muted hover:bg-white/[0.06] hover:text-foreground",
                   )}
                   onClick={() => setOpen(false)}
                 >
@@ -256,7 +294,9 @@ export function Header() {
                     href="/admin"
                     className={cn(
                       "flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold motion-safe:transition-colors motion-safe:duration-150",
-                      isAdminActive ? "bg-[#A3E635]/15 text-[#A3E635]" : "text-[#A3E635] hover:bg-[#A3E635]/10"
+                      isAdminActive
+                        ? "bg-[#A3E635]/15 text-[#A3E635]"
+                        : "text-[#A3E635] hover:bg-[#A3E635]/10",
                     )}
                     onClick={() => setOpen(false)}
                   >
@@ -270,7 +310,9 @@ export function Header() {
                   href={profileHref}
                   className={cn(
                     "rounded-lg px-3 py-2.5 text-sm font-medium motion-safe:transition-colors motion-safe:duration-150",
-                    isProfileActive ? "bg-white/[0.09] text-foreground" : "text-muted hover:bg-white/[0.06] hover:text-foreground"
+                    isProfileActive
+                      ? "bg-white/[0.09] text-foreground"
+                      : "text-muted hover:bg-white/[0.06] hover:text-foreground",
                   )}
                   onClick={() => setOpen(false)}
                 >
@@ -280,7 +322,9 @@ export function Header() {
                   href="/me/library"
                   className={cn(
                     "rounded-lg px-3 py-2.5 text-sm font-medium motion-safe:transition-colors motion-safe:duration-150",
-                    isLibraryActive ? "bg-white/[0.09] text-foreground" : "text-muted hover:bg-white/[0.06] hover:text-foreground"
+                    isLibraryActive
+                      ? "bg-white/[0.09] text-foreground"
+                      : "text-muted hover:bg-white/[0.06] hover:text-foreground",
                   )}
                   onClick={() => setOpen(false)}
                 >
@@ -288,7 +332,10 @@ export function Header() {
                 </Link>
                 <button
                   className="rounded-lg px-3 py-2.5 text-left text-sm font-medium text-muted motion-safe:transition-colors motion-safe:duration-150 hover:bg-white/[0.06] hover:text-foreground"
-                  onClick={() => { setOpen(false); signOut(); }}
+                  onClick={() => {
+                    setOpen(false);
+                    signOut();
+                  }}
                 >
                   Salir
                 </button>
@@ -305,7 +352,9 @@ export function Header() {
                 <Link
                   href="/auth?mode=signup"
                   className="rounded-lg py-2.5 text-center text-sm font-semibold text-white motion-safe:transition-opacity motion-safe:duration-150 hover:opacity-90"
-                  style={{ background: "linear-gradient(135deg, #3B82F6, #8B5CF6)" }}
+                  style={{
+                    background: "linear-gradient(135deg, #3B82F6, #8B5CF6)",
+                  }}
                   onClick={() => setOpen(false)}
                 >
                   Crear cuenta

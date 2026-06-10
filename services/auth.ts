@@ -23,9 +23,19 @@ type DbUser = {
   password_hash: string;
   username: string;
   display_name: string | null;
+  banned_at?: string | null;
+  banned_until?: string | null;
+  banned_reason?: string | null;
 };
 
-const USER_COLUMNS = "id, email, password_hash, username, display_name";
+const USER_COLUMNS =
+  "id, email, password_hash, username, display_name, banned_at, banned_until, banned_reason";
+
+function isBanActive(user: DbUser) {
+  if (!user.banned_at) return false;
+  if (!user.banned_until) return true;
+  return new Date(user.banned_until) > new Date();
+}
 
 export class AccountBannedError extends Error {
   bannedUntil: string | null;

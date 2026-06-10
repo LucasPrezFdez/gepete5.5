@@ -19,7 +19,7 @@ import {
   listFromRow,
   syncDefaultProfileLists,
 } from "@/services/lists";
-import { isEmailAdmin } from "@/services/auth";
+import { getAdminEmailSet, isEmailAdmin } from "@/services/auth";
 
 export type PublicProfileActivity = Omit<ActivityEvent, "user" | "review"> & {
   game?: ActivityEvent["game"] | null;

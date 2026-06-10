@@ -230,20 +230,6 @@ export function UserProfileHeader({ profile, stats }: Props) {
     }
   }
 
-  function buildProfilePatchPayload(overrides?: { bannerUrl?: string | null }) {
-    return {
-      displayName: currentProfile.displayName,
-      bio: currentProfile.bio ?? "",
-      avatarUrl: currentProfile.avatarUrl ?? "",
-      bannerUrl:
-        overrides?.bannerUrl !== undefined
-          ? (overrides.bannerUrl ?? "")
-          : (currentProfile.bannerUrl ?? ""),
-      favoritePlatforms: currentProfile.favoritePlatforms,
-      favoriteGenres: currentProfile.favoriteGenres,
-    };
-  }
-
   async function patchMyProfile(payload: ProfilePatchPayload) {
     if (!accessToken) throw new Error("Debes iniciar sesión.");
     const response = await fetch("/api/me/profile", {

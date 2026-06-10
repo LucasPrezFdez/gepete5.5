@@ -1,7 +1,7 @@
 ﻿import Image from "next/image";
 import Link from "next/link";
 import { Game } from "@/data/games";
-import { formatCompactNumber, prioritizePlatform } from "@/lib/utils";
+import { prioritizePlatform } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { RatingBadge } from "@/components/ratings/RatingBadge";
 

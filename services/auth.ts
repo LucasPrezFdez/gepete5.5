@@ -23,9 +23,9 @@ type DbUser = {
   password_hash: string;
   username: string;
   display_name: string | null;
-  banned_at?: string | null;
-  banned_until?: string | null;
-  banned_reason?: string | null;
+  banned_at: string | null;
+  banned_until: string | null;
+  banned_reason: string | null;
 };
 
 const USER_COLUMNS =

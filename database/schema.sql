@@ -209,6 +209,10 @@ create table dlcs (
 create index games_slug_idx on games(slug);
 create index games_release_year_idx on games(release_year);
 create index games_popularity_idx on games(popularity_score desc);
+create index if not exists reviews_user_id_idx on reviews(user_id);
+create index if not exists ratings_user_id_idx on ratings(user_id);
+create index if not exists follows_following_id_idx on follows(following_id);
+
 create index reviews_game_id_idx on reviews(game_id);
 create index ratings_game_id_idx on ratings(game_id);
 create index ratings_game_comments_idx on ratings(game_id, updated_at desc) where comment_body is not null;

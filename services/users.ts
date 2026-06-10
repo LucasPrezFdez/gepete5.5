@@ -1,8 +1,25 @@
-import type { ActivityEvent, GameList, Profile, ProfileStats, Review } from "@/data/games";
-import { FALLBACK_USERS, FALLBACK_USERS_BY_USERNAME } from "@/data/fallback-users";
-import { createServiceDatabaseClient, createSqlClient } from "@/services/database";
+import type {
+  ActivityEvent,
+  GameList,
+  Profile,
+  ProfileStats,
+  Review,
+} from "@/data/games";
+import {
+  FALLBACK_USERS,
+  FALLBACK_USERS_BY_USERNAME,
+} from "@/data/fallback-users";
+import {
+  createServiceDatabaseClient,
+  createSqlClient,
+} from "@/services/database";
 import { profileFromRow, reviewFromRow } from "@/services/community";
-import { dedupeListsByTitle, listFromRow, syncDefaultProfileLists } from "@/services/lists";
+import {
+  dedupeListsByTitle,
+  listFromRow,
+  syncDefaultProfileLists,
+} from "@/services/lists";
+import { isEmailAdmin } from "@/services/auth";
 
 export type PublicProfileActivity = Omit<ActivityEvent, "user" | "review"> & {
   game?: ActivityEvent["game"] | null;
@@ -17,9 +34,12 @@ export type PublicUserProfile = {
   activity: PublicProfileActivity[];
 };
 
-const PROFILE_SELECT = "id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres";
+const PROFILE_SELECT =
+  "id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres";
 
-export async function getPublicUserProfile(username: string): Promise<PublicUserProfile | null> {
+export async function getPublicUserProfile(
+  username: string,
+): Promise<PublicUserProfile | null> {
   try {
     const real = await loadPublicUserProfileFromDatabase(username);
     if (real) return real;
@@ -37,11 +57,13 @@ function getFallbackUserProfile(username: string): PublicUserProfile | null {
     stats: mock.stats,
     lists: mock.lists,
     reviews: mock.reviews,
-    activity: []
+    activity: [],
   };
 }
 
-async function loadPublicUserProfileFromDatabase(username: string): Promise<PublicUserProfile | null> {
+async function loadPublicUserProfileFromDatabase(
+  username: string,
+): Promise<PublicUserProfile | null> {
   const serviceClient = createServiceDatabaseClient();
   const { data: profile, error } = await serviceClient
     .from("profiles")
@@ -52,7 +74,10 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
   if (error) throw new Error(error.message);
   if (!profile) return null;
 
-  await syncDefaultProfileLists(serviceClient, { id: profile.id, username: profile.username });
+  await syncDefaultProfileLists(serviceClient, {
+    id: profile.id,
+    username: profile.username,
+  });
 
   const [
     ratings,
@@ -63,13 +88,21 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
     realReviews,
     activity,
     followers,
-    following
+    following,
   ] = await Promise.all([
-    serviceClient.from("ratings").select("score", { count: "exact" }).eq("user_id", profile.id),
-    serviceClient.from("user_game_statuses").select("status", { count: "exact" }).eq("user_id", profile.id),
+    serviceClient
+      .from("ratings")
+      .select("score", { count: "exact" })
+      .eq("user_id", profile.id),
+    serviceClient
+      .from("user_game_statuses")
+      .select("status", { count: "exact" })
+      .eq("user_id", profile.id),
     serviceClient
       .from("lists")
-      .select("*, profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))")
+      .select(
+        "*, profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres), list_items(position,note,games(slug,title,summary,release_year,status,cover_url,hero_url,user_score,critic_score,rating_count,review_count))",
+      )
       .eq("user_id", profile.id)
       .eq("is_public", true)
       .is("hidden_at", null)
@@ -83,7 +116,9 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
       .is("hidden_at", null),
     serviceClient
       .from("ratings")
-      .select("id,score,comment_body,created_at,updated_at,profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres),games:game_id(slug,title)")
+      .select(
+        "id,score,comment_body,created_at,updated_at,profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres),games:game_id(slug,title)",
+      )
       .eq("user_id", profile.id)
       .not("comment_body", "is", null)
       .is("hidden_at", null)
@@ -91,24 +126,37 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
       .limit(6),
     serviceClient
       .from("reviews")
-      .select("id,title,body,score,has_spoilers,helpful_count,created_at,updated_at,user_id,profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres),games:game_id(slug,title)")
+      .select(
+        "id,title,body,score,has_spoilers,helpful_count,created_at,updated_at,user_id,profiles:user_id(id,username,display_name,bio,avatar_url,banner_url,created_at,updated_at,favorite_platforms,favorite_genres),games:game_id(slug,title)",
+      )
       .eq("user_id", profile.id)
       .is("hidden_at", null)
       .order("updated_at", { ascending: false })
       .limit(6),
     serviceClient
       .from("activity_events")
-      .select("id,type,message,created_at,games:game_id(slug,title,cover_url), lists:list_id(slug,title)")
+      .select(
+        "id,type,message,created_at,games:game_id(slug,title,cover_url), lists:list_id(slug,title)",
+      )
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false })
       .limit(12),
-    serviceClient.from("follows").select("follower_id", { count: "exact", head: true }).eq("following_id", profile.id),
-    serviceClient.from("follows").select("following_id", { count: "exact", head: true }).eq("follower_id", profile.id)
+    serviceClient
+      .from("follows")
+      .select("follower_id", { count: "exact", head: true })
+      .eq("following_id", profile.id),
+    serviceClient
+      .from("follows")
+      .select("following_id", { count: "exact", head: true })
+      .eq("follower_id", profile.id),
   ]);
 
-  const scores = (ratings.data ?? []).map((item: any) => Number(item.score)).filter(Number.isFinite);
+  const scores = (ratings.data ?? [])
+    .map((item: any) => Number(item.score))
+    .filter(Number.isFinite);
   const statusCounts = new Map<string, number>();
-  for (const item of ((statuses.data ?? []) as any[])) statusCounts.set(item.status, (statusCounts.get(item.status) ?? 0) + 1);
+  for (const item of (statuses.data ?? []) as any[])
+    statusCounts.set(item.status, (statusCounts.get(item.status) ?? 0) + 1);
 
   const mappedProfile = profileFromRow(profile);
 
@@ -116,61 +164,90 @@ async function loadPublicUserProfileFromDatabase(username: string): Promise<Publ
     profile: mappedProfile,
     stats: {
       ratingsCount: ratings.count ?? scores.length,
-      averageScore: scores.length ? Number((scores.reduce((total: number, score: number) => total + score, 0) / scores.length).toFixed(1)) : 0,
+      averageScore: scores.length
+        ? Number(
+            (
+              scores.reduce(
+                (total: number, score: number) => total + score,
+                0,
+              ) / scores.length
+            ).toFixed(1),
+          )
+        : 0,
       completedCount: statusCounts.get("completed") ?? 0,
       backlogCount: statusCounts.get("want_to_play") ?? 0,
       listsCount: publicListsCount.count ?? lists.data?.length ?? 0,
       followerCount: followers.count ?? 0,
       followingCount: following.count ?? 0,
       favoritePlatforms: mappedProfile.favoritePlatforms,
-      favoriteGenres: mappedProfile.favoriteGenres
+      favoriteGenres: mappedProfile.favoriteGenres,
     },
     lists: dedupeListsByTitle((lists.data ?? []).map(listFromRow)),
-    reviews: mergeReviewsAndRatingComments(realReviews.data ?? [], ratingComments.data ?? []),
+    reviews: mergeReviewsAndRatingComments(
+      realReviews.data ?? [],
+      ratingComments.data ?? [],
+    ),
     activity: (activity.data ?? []).map((item: any) => ({
       id: item.id,
       type: item.type,
       message: item.message,
       createdAt: item.created_at,
       game: item.games ?? null,
-      list: item.lists ?? null
-    }))
+      list: item.lists ?? null,
+    })),
   };
 }
 
 function ratingRowToReview(row: any): Review {
-  const profileRow = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  const profileRow = Array.isArray(row.profiles)
+    ? row.profiles[0]
+    : row.profiles;
   const gameRow = Array.isArray(row.games) ? row.games[0] : row.games;
   const gameTitle = gameRow?.title ?? gameRow?.slug ?? "Juego";
-  const updatedAt = row.updated_at ?? row.created_at ?? new Date().toISOString();
+  const updatedAt =
+    row.updated_at ?? row.created_at ?? new Date().toISOString();
   return {
     id: "",
     gameSlug: gameRow?.slug ?? "",
     gameTitle,
-    user: profileFromRow(profileRow ?? { id: row.user_id, username: "usuario" }),
+    user: profileFromRow(
+      profileRow ?? { id: row.user_id, username: "usuario" },
+    ),
     title: gameTitle,
     body: String(row.comment_body ?? "").trim(),
     score: Number(row.score ?? 0),
     helpfulCount: 0,
     hasSpoilers: false,
     createdAt: row.created_at ?? updatedAt,
-    updatedAt
+    updatedAt,
   };
 }
 
-function mergeReviewsAndRatingComments(reviewRows: any[], ratingRows: any[]): Review[] {
+function mergeReviewsAndRatingComments(
+  reviewRows: any[],
+  ratingRows: any[],
+): Review[] {
   const reviews = reviewRows
     .filter((row) => typeof row.body === "string" && row.body.trim().length > 0)
     .map(reviewFromRow);
-  const reviewedGameSlugs = new Set(reviews.map((review) => review.gameSlug).filter(Boolean));
+  const reviewedGameSlugs = new Set(
+    reviews.map((review) => review.gameSlug).filter(Boolean),
+  );
 
   const ratingComments = ratingRows
-    .filter((row: any) => typeof row.comment_body === "string" && row.comment_body.trim().length > 0)
+    .filter(
+      (row: any) =>
+        typeof row.comment_body === "string" &&
+        row.comment_body.trim().length > 0,
+    )
     .map(ratingRowToReview)
     .filter((review) => !reviewedGameSlugs.has(review.gameSlug));
 
   return [...reviews, ...ratingComments]
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    )
     .slice(0, 6);
 }
 
@@ -189,8 +266,14 @@ export async function getProfileRowByUsername(username: string) {
 export async function getFollowCounts(profileId: string) {
   const serviceClient = createServiceDatabaseClient();
   const [followers, following] = await Promise.all([
-    serviceClient.from("follows").select("follower_id", { count: "exact", head: true }).eq("following_id", profileId),
-    serviceClient.from("follows").select("following_id", { count: "exact", head: true }).eq("follower_id", profileId)
+    serviceClient
+      .from("follows")
+      .select("follower_id", { count: "exact", head: true })
+      .eq("following_id", profileId),
+    serviceClient
+      .from("follows")
+      .select("following_id", { count: "exact", head: true })
+      .eq("follower_id", profileId),
   ]);
 
   if (followers.error) throw new Error(followers.error.message);
@@ -198,11 +281,14 @@ export async function getFollowCounts(profileId: string) {
 
   return {
     followerCount: followers.count ?? 0,
-    followingCount: following.count ?? 0
+    followingCount: following.count ?? 0,
   };
 }
 
-export async function getIsFollowing(followerId: string | null, followingId: string) {
+export async function getIsFollowing(
+  followerId: string | null,
+  followingId: string,
+) {
   if (!followerId || followerId === followingId) return false;
 
   const serviceClient = createServiceDatabaseClient();
@@ -219,10 +305,28 @@ export async function getIsFollowing(followerId: string | null, followingId: str
 
 export type DirectoryUserCard = {
   profile: Profile;
-  stats: Pick<ProfileStats, "ratingsCount" | "averageScore" | "completedCount" | "followerCount" | "listsCount">;
+  stats: Pick<
+    ProfileStats,
+    | "ratingsCount"
+    | "averageScore"
+    | "completedCount"
+    | "followerCount"
+    | "listsCount"
+  >;
 };
 
-export type DirectorySort = "followers" | "ratings" | "completed" | "alphabetical";
+export type AdminDirectoryUserCard = DirectoryUserCard & {
+  account: {
+    email: string | null;
+    isAdmin: boolean;
+  } | null;
+};
+
+export type DirectorySort =
+  | "followers"
+  | "ratings"
+  | "completed"
+  | "alphabetical";
 
 export type DirectoryResult = {
   users: DirectoryUserCard[];
@@ -237,28 +341,32 @@ export async function listPublicUsers({
   query,
   sort = "followers",
   page = 1,
-  pageSize = 24
+  pageSize = 24,
 }: {
   query?: string;
   sort?: DirectorySort;
   page?: number;
   pageSize?: number;
 } = {}): Promise<DirectoryResult> {
-  const realUsers = await loadRealDirectoryUsers().catch(() => [] as DirectoryUserCard[]);
-  const realUsernames = new Set(realUsers.map((user) => user.profile.username.toLowerCase()));
+  const realUsers = await loadRealDirectoryUsers().catch(
+    () => [] as DirectoryUserCard[],
+  );
+  const realUsernames = new Set(
+    realUsers.map((user) => user.profile.username.toLowerCase()),
+  );
 
-  const mockUsers: DirectoryUserCard[] = FALLBACK_USERS
-    .filter((mock) => !realUsernames.has(mock.profile.username.toLowerCase()))
-    .map((mock) => ({
-      profile: mock.profile,
-      stats: {
-        ratingsCount: mock.stats.ratingsCount,
-        averageScore: mock.stats.averageScore,
-        completedCount: mock.stats.completedCount,
-        followerCount: mock.stats.followerCount,
-        listsCount: mock.stats.listsCount
-      }
-    }));
+  const mockUsers: DirectoryUserCard[] = FALLBACK_USERS.filter(
+    (mock) => !realUsernames.has(mock.profile.username.toLowerCase()),
+  ).map((mock) => ({
+    profile: mock.profile,
+    stats: {
+      ratingsCount: mock.stats.ratingsCount,
+      averageScore: mock.stats.averageScore,
+      completedCount: mock.stats.completedCount,
+      followerCount: mock.stats.followerCount,
+      listsCount: mock.stats.listsCount,
+    },
+  }));
 
   const combined = [...realUsers, ...mockUsers];
   const filtered = filterDirectoryUsers(combined, query);
@@ -275,11 +383,80 @@ export async function listPublicUsers({
     page: safePage,
     pageSize: safePageSize,
     nextPage: from + safePageSize < sorted.length ? safePage + 1 : null,
-    previousPage: safePage > 1 ? safePage - 1 : null
+    previousPage: safePage > 1 ? safePage - 1 : null,
   };
 }
 
-async function loadRealDirectoryUsers(): Promise<DirectoryUserCard[]> {
+let cachedAdminEmailSet: Set<string> | null = null;
+function getCachedAdminEmailSet() {
+  if (!cachedAdminEmailSet) {
+    cachedAdminEmailSet = getAdminEmailSet();
+  }
+  return cachedAdminEmailSet;
+}
+
+export async function listAdminDirectoryUsers({
+  query,
+  filter = "all",
+  page = 1,
+  pageSize = 25,
+}: {
+  query?: string;
+  filter?: "all" | "banned" | "admins";
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<{
+  users: AdminDirectoryUserCard[];
+  count: number;
+  page: number;
+  pageSize: number;
+}> {
+  const realUsers = await loadRealDirectoryUsers().catch((err) => {
+    console.error("Error loading real directory users:", err);
+    return [] as AdminDirectoryUserCard[];
+  });
+
+  const realUsernames = new Set(
+    realUsers.map((user) => user.profile.username.toLowerCase()),
+  );
+
+  const mockUsers: AdminDirectoryUserCard[] = FALLBACK_USERS.filter(
+    (mock) => !realUsernames.has(mock.profile.username.toLowerCase()),
+  ).map((mock) => ({
+    profile: mock.profile,
+    stats: {
+      ratingsCount: mock.stats.ratingsCount,
+      averageScore: mock.stats.averageScore,
+      completedCount: mock.stats.completedCount,
+      followerCount: mock.stats.followerCount,
+      listsCount: mock.stats.listsCount,
+    },
+    account: null,
+  }));
+
+  const combined = [...realUsers, ...mockUsers];
+  const filtered = filterAdminDirectoryUsers(combined, query, filter);
+  const sorted = filtered.sort((a, b) => {
+    const aFollowers = a.stats.followerCount;
+    const bFollowers = b.stats.followerCount;
+    return (
+      bFollowers - aFollowers || b.stats.ratingsCount - a.stats.ratingsCount
+    );
+  });
+
+  const safePage = Math.max(1, Math.floor(page));
+  const safePageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
+  const from = (safePage - 1) * safePageSize;
+
+  return {
+    users: sorted.slice(from, from + safePageSize),
+    count: sorted.length,
+    page: safePage,
+    pageSize: safePageSize,
+  };
+}
+
+async function loadRealDirectoryUsers(): Promise<AdminDirectoryUserCard[]> {
   const serviceClient = createServiceDatabaseClient();
   const { data, error } = await serviceClient
     .from("profiles")
@@ -291,27 +468,53 @@ async function loadRealDirectoryUsers(): Promise<DirectoryUserCard[]> {
   if (!data?.length) return [];
 
   const profiles = data as any[];
-  const ids = profiles.map((row) => row.id);
+  const ids = profiles
+    .map((row) => row.id)
+    .filter((id) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      ),
+    );
+
+  if (!ids.length)
+    return profiles.map((row) => ({
+      profile: profileFromRow(row),
+      stats: {
+        ratingsCount: 0,
+        averageScore: 0,
+        completedCount: 0,
+        followerCount: 0,
+        listsCount: 0,
+      },
+      account: null,
+    }));
 
   const sql = createSqlClient();
-  const [ratingsRows, completedRows, listsRows, followersRows] = await Promise.all([
-    sql.query(
-      "select user_id, count(*)::int as n, coalesce(round(avg(score)::numeric, 1), 0) as avg_score from ratings where user_id = any($1::uuid[]) and hidden_at is null group by user_id",
-      [ids]
-    ),
-    sql.query(
-      "select user_id, count(*)::int as n from user_game_statuses where user_id = any($1::uuid[]) and status = 'completed' group by user_id",
-      [ids]
-    ),
-    sql.query(
-      "select user_id, count(*)::int as n from lists where user_id = any($1::uuid[]) and is_public = true and hidden_at is null group by user_id",
-      [ids]
-    ),
-    sql.query(
-      "select following_id, count(*)::int as n from follows where following_id = any($1::uuid[]) group by following_id",
-      [ids]
-    )
-  ]);
+  const [ratingsRows, completedRows, listsRows, followersRows, accountRows] =
+    await Promise.all([
+      sql.query(
+        "select user_id, count(*)::int as n, coalesce(round(avg(score)::numeric, 1), 0) as avg_score from ratings where user_id = any($1::uuid[]) and hidden_at is null group by user_id",
+        [ids],
+      ),
+      sql.query(
+        "select user_id, count(*)::int as n from user_game_statuses where user_id = any($1::uuid[]) and status = 'completed' group by user_id",
+        [ids],
+      ),
+      sql.query(
+        "select user_id, count(*)::int as n from lists where user_id = any($1::uuid[]) and is_public = true and hidden_at is null group by user_id",
+        [ids],
+      ),
+      sql.query(
+        "select following_id, count(*)::int as n from follows where following_id = any($1::uuid[]) group by following_id",
+        [ids],
+      ),
+      sql.query(
+        `select id, email, is_admin, banned_at, banned_until
+       from app_users
+       where id = any($1::uuid[])`,
+        [ids],
+      ),
+    ]);
 
   const ratingsBy = new Map<string, { count: number; avg: number }>();
   for (const row of ratingsRows as any[]) {
@@ -322,10 +525,27 @@ async function loadRealDirectoryUsers(): Promise<DirectoryUserCard[]> {
   const listsBy = new Map<string, number>();
   for (const row of listsRows as any[]) listsBy.set(row.user_id, row.n);
   const followersBy = new Map<string, number>();
-  for (const row of followersRows as any[]) followersBy.set(row.following_id, row.n);
+  for (const row of followersRows as any[])
+    followersBy.set(row.following_id, row.n);
+  const accountById = new Map(
+    (accountRows as any[]).map((row) => [row.id, row]),
+  );
+
+  const adminEmailSet = getCachedAdminEmailSet();
 
   return profiles.map((row) => {
     const r = ratingsBy.get(row.id);
+    const acc = accountById.get(row.id);
+    const isAdmin = acc
+      ? acc.is_admin || adminEmailSet.has(acc.email?.toLowerCase())
+      : false;
+    const isBanned = acc
+      ? Boolean(
+          acc.banned_at &&
+          (!acc.banned_until || new Date(acc.banned_until) > new Date()),
+        )
+      : false;
+
     return {
       profile: profileFromRow(row),
       stats: {
@@ -333,13 +553,46 @@ async function loadRealDirectoryUsers(): Promise<DirectoryUserCard[]> {
         averageScore: r?.avg ?? 0,
         completedCount: completedBy.get(row.id) ?? 0,
         followerCount: followersBy.get(row.id) ?? 0,
-        listsCount: listsBy.get(row.id) ?? 0
-      }
+        listsCount: listsBy.get(row.id) ?? 0,
+      },
+      account: acc
+        ? {
+            email: acc.email,
+            isAdmin,
+            isBanned,
+          }
+        : null,
     };
   });
 }
 
-function filterDirectoryUsers(users: DirectoryUserCard[], query?: string): DirectoryUserCard[] {
+function filterAdminDirectoryUsers(
+  users: AdminDirectoryUserCard[],
+  query?: string,
+  filter?: "all" | "banned" | "admins",
+) {
+  const normalized = query?.trim().toLowerCase();
+  return users.filter((user) => {
+    if (filter === "banned" && !(user as any).account?.isBanned) return false;
+    if (filter === "admins" && !user.account?.isAdmin) return false;
+    if (!normalized) return true;
+
+    const email =
+      user.account?.email ?? `${user.profile.username}@mock.gameindex.local`;
+    const { username, displayName, bio } = user.profile;
+    return (
+      email.toLowerCase().includes(normalized) ||
+      username.toLowerCase().includes(normalized) ||
+      displayName.toLowerCase().includes(normalized) ||
+      (bio ? bio.toLowerCase().includes(normalized) : false)
+    );
+  });
+}
+
+function filterDirectoryUsers(
+  users: DirectoryUserCard[],
+  query?: string,
+): DirectoryUserCard[] {
   const normalized = query?.trim().toLowerCase();
   if (!normalized) return users;
   return users.filter((user) => {
@@ -352,21 +605,38 @@ function filterDirectoryUsers(users: DirectoryUserCard[], query?: string): Direc
   });
 }
 
-function sortDirectoryUsers(users: DirectoryUserCard[], sort: DirectorySort): DirectoryUserCard[] {
+function sortDirectoryUsers(
+  users: DirectoryUserCard[],
+  sort: DirectorySort,
+): DirectoryUserCard[] {
   const copy = [...users];
   switch (sort) {
     case "ratings":
-      copy.sort((a, b) => b.stats.ratingsCount - a.stats.ratingsCount || b.stats.followerCount - a.stats.followerCount);
+      copy.sort(
+        (a, b) =>
+          b.stats.ratingsCount - a.stats.ratingsCount ||
+          b.stats.followerCount - a.stats.followerCount,
+      );
       break;
     case "completed":
-      copy.sort((a, b) => b.stats.completedCount - a.stats.completedCount || b.stats.followerCount - a.stats.followerCount);
+      copy.sort(
+        (a, b) =>
+          b.stats.completedCount - a.stats.completedCount ||
+          b.stats.followerCount - a.stats.followerCount,
+      );
       break;
     case "alphabetical":
-      copy.sort((a, b) => a.profile.displayName.localeCompare(b.profile.displayName, "es"));
+      copy.sort((a, b) =>
+        a.profile.displayName.localeCompare(b.profile.displayName, "es"),
+      );
       break;
     case "followers":
     default:
-      copy.sort((a, b) => b.stats.followerCount - a.stats.followerCount || b.stats.ratingsCount - a.stats.ratingsCount);
+      copy.sort(
+        (a, b) =>
+          b.stats.followerCount - a.stats.followerCount ||
+          b.stats.ratingsCount - a.stats.ratingsCount,
+      );
   }
   return copy;
 }

@@ -74,7 +74,7 @@ const TABLES = new Set([
 ]);
 
 const TABLE_COLUMNS: Record<string, string[]> = {
-  profiles: ["id", "username", "display_name", "bio", "avatar_url", "banner_url", "created_at", "updated_at", "onboarding_completed", "favorite_platforms", "favorite_genres"],
+  profiles: ["id", "username", "display_name", "bio", "avatar_url", "banner_url", "created_at", "updated_at", "onboarding_completed", "favorite_platforms", "favorite_genres", "featured_game_id"],
   app_users: ["id", "email", "password_hash", "username", "display_name", "created_at", "updated_at"],
   games: ["id", "slug", "title", "summary", "release_year", "status", "cover_url", "hero_url", "trailer_url", "user_score", "critic_score", "rating_count", "review_count", "popularity_score", "created_at", "updated_at", "last_synced_at", "source_priority", "is_featured", "featured_rank", "is_hidden", "hidden_reason"],
   platforms: ["id", "slug", "name"],

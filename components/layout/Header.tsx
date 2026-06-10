@@ -55,11 +55,13 @@ export function Header() {
       if (!mounted) return;
       setSession(nextSession);
       if (!nextSession?.user) { setUsername(null); return; }
+      const sessionUsername = nextSession.user.user_metadata?.username ?? null;
+      setUsername(sessionUsername);
       const response = await fetch("/api/me/profile", {
         headers: { Authorization: `Bearer ${nextSession.access_token}` }
       }).catch(() => null);
       const data = response?.ok ? await response.json().catch(() => null) : null;
-      if (mounted) setUsername(data?.profile?.username ?? nextSession.user.user_metadata?.username ?? null);
+      if (mounted) setUsername(data?.profile?.username ?? sessionUsername);
     }
 
     authClient.auth.getSession().then(({ data }) => load(data.session));

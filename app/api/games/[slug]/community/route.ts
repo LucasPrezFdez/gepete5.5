@@ -28,15 +28,7 @@ export async function GET(request: Request, { params }: { params: Params }) {
   }
 
   const [commentsResult, userRatingResult] = await Promise.all([
-    serviceClient
-      .from("ratings")
-      .select(
-        "id, score, comment_body, updated_at, profiles:user_id(username, display_name, avatar_url)"
-      )
-      .eq("game_id", game.id)
-      .not("comment_body", "is", null)
-      .is("hidden_at", null)
-      .order("updated_at", { ascending: false }),
+    getVisibleCommunityComments(serviceClient, game.id),
     userId
       ? serviceClient
           .from("ratings")
@@ -329,6 +321,40 @@ function getBearerToken(request: Request) {
   }
 
   return header.slice("bearer ".length).trim();
+}
+
+async function getVisibleCommunityComments(
+  serviceClient: ReturnType<typeof createServiceDatabaseClient>,
+  gameId: string
+) {
+  const baseQuery = serviceClient
+    .from("ratings")
+    .select("id, score, comment_body, updated_at, profiles:user_id(username, display_name, avatar_url)")
+    .eq("game_id", gameId)
+    .not("comment_body", "is", null)
+    .order("updated_at", { ascending: false });
+
+  const visibleOnlyResult = await baseQuery.is("hidden_at", null);
+
+  if (!isMissingHiddenAtColumnError(visibleOnlyResult.error?.message)) {
+    return visibleOnlyResult;
+  }
+
+  return serviceClient
+    .from("ratings")
+    .select("id, score, comment_body, updated_at, profiles:user_id(username, display_name, avatar_url)")
+    .eq("game_id", gameId)
+    .not("comment_body", "is", null)
+    .order("updated_at", { ascending: false });
+}
+
+function isMissingHiddenAtColumnError(message?: string) {
+  if (!message) {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+  return normalized.includes('column "hidden_at"') && normalized.includes("does not exist");
 }
 
 

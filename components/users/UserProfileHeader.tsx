@@ -32,7 +32,7 @@ type ProfilePatchPayload = {
 export function UserProfileHeader({ profile, stats }: Props) {
   const router = useRouter();
   const [currentProfile, setCurrentProfile] = useState(profile);
-  const [viewerProfile, setViewerProfile] = useState<Profile | null>(null);
+  const [viewerUserId, setViewerUserId] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [checkingViewer, setCheckingViewer] = useState(true);
   const [followers, setFollowers] = useState(stats.followerCount);
@@ -46,7 +46,7 @@ export function UserProfileHeader({ profile, stats }: Props) {
   const [bannerAdjustSource, setBannerAdjustSource] = useState<string | null>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  const isOwnProfile = viewerProfile?.username === currentProfile.username;
+  const isOwnProfile = viewerUserId === currentProfile.id;
   const preferences = useMemo(
     () => [...currentProfile.favoritePlatforms, ...currentProfile.favoriteGenres],
     [currentProfile.favoritePlatforms, currentProfile.favoriteGenres]
@@ -76,23 +76,19 @@ export function UserProfileHeader({ profile, stats }: Props) {
         const token = data.session?.access_token ?? null;
         if (!mounted) return;
         setAccessToken(token);
+        setViewerUserId(data.session?.user?.id ?? null);
 
         if (!token) {
-          setViewerProfile(null);
           setCheckingViewer(false);
           return;
         }
 
-        const response = await fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
-        const payload = response.ok ? await response.json().catch(() => null) : null;
-        if (mounted) {
-          setViewerProfile(payload?.profile ?? null);
-          setCheckingViewer(false);
-        }
+        await fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }).catch(() => null);
+        if (mounted) setCheckingViewer(false);
       } catch {
         if (mounted) {
           setAccessToken(null);
-          setViewerProfile(null);
+          setViewerUserId(null);
           setCheckingViewer(false);
         }
       }
@@ -105,8 +101,8 @@ export function UserProfileHeader({ profile, stats }: Props) {
     } = authClient.auth.onAuthStateChange((_event, nextSession) => {
       setCheckingViewer(true);
       setAccessToken(nextSession?.access_token ?? null);
+      setViewerUserId(nextSession?.user?.id ?? null);
       if (!nextSession?.access_token) {
-        setViewerProfile(null);
         setCheckingViewer(false);
       } else {
         void loadViewer();

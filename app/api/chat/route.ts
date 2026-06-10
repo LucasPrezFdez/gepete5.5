@@ -636,12 +636,91 @@ function inferIntentFromText(text: string): InferredIntent | null {
   return { tool: "search_games", args };
 }
 
+function inferSimilarityQuery(text: string) {
+  const cleaned = text.trim();
+  if (!cleaned) return null;
+
+  const patterns = [
+    /(?:recom[ií]endame|recomienda|sugiere|busca|dime|quiero|necesito|alg[oú]n|un|una)?\s*(?:juego|juegos|t[ií]tulo|titulo|game|games)?\s*(?:parecido(?:s)? a|similar(?:es)? a|como)\s+(.+?)(?:\?|\.|,|;|$)/i,
+    /(?:algo|algo parecido|algo similar)\s+a\s+(.+?)(?:\?|\.|,|;|$)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (match?.[1]) {
+      const query = match[1]
+        .replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, "")
+        .replace(/\b(que|qué|similar|parecido|parecida|parecidos|parecidas)\b.*$/i, "")
+        .trim();
+      if (query) return query;
+    }
+  }
+
+  return null;
+}
+
 async function attemptIntentRescue(
   conversation: ChatMessage[],
   send: (event: { type: string; [k: string]: unknown }) => void
 ): Promise<boolean> {
   const lastUser = [...conversation].reverse().find((m) => m.role === "user");
   if (!lastUser?.content) return false;
+
+  const similarityQuery = inferSimilarityQuery(lastUser.content);
+  if (similarityQuery) {
+    log.info("intent rescue", { tool: "get_similar_games", query: similarityQuery });
+    send({ type: "tool", name: "get_similar_games" });
+
+    const reference = await resolveGameReference(similarityQuery);
+    const syntheticId = `rescue-${Date.now()}`;
+
+    if (!reference) {
+      conversation.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [
+          {
+            id: syntheticId,
+            type: "function",
+            function: { name: "search_games", arguments: JSON.stringify({ query: similarityQuery, sort: "popular", limit: 5 }) }
+          }
+        ]
+      });
+      conversation.push({
+        role: "tool",
+        tool_call_id: syntheticId,
+        name: "search_games",
+        content: JSON.stringify({
+          error: "No pude identificar el juego de referencia.",
+          query: similarityQuery
+        })
+      });
+      return true;
+    }
+
+    const similar = await getSimilarGames(reference, 6);
+    conversation.push({
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: syntheticId,
+          type: "function",
+          function: { name: "get_similar_games", arguments: JSON.stringify({ slug: reference.slug, limit: 6 }) }
+        }
+      ]
+    });
+    conversation.push({
+      role: "tool",
+      tool_call_id: syntheticId,
+      name: "get_similar_games",
+      content: JSON.stringify({
+        reference: { title: reference.title, slug: reference.slug },
+        games: similar.map(summarizeGame)
+      })
+    });
+    return true;
+  }
 
   const intent = inferIntentFromText(lastUser.content);
   if (!intent) return false;
@@ -670,6 +749,31 @@ async function attemptIntentRescue(
     content: JSON.stringify(result)
   });
   return true;
+}
+
+async function resolveGameReference(query: string) {
+  try {
+    const result = await getExploreGames({ query, pageSize: 5, sort: "popular" });
+    const normalizedQuery = normalizeTitle(query);
+    const match =
+      result.games.find((game) => normalizeTitle(game.title) === normalizedQuery) ??
+      result.games.find((game) => normalizeTitle(game.title).includes(normalizedQuery)) ??
+      result.games[0];
+
+    return match ?? null;
+  } catch (error) {
+    log.debug("failed to resolve game reference", { error, query });
+    return null;
+  }
+}
+
+function normalizeTitle(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function parseMessages(payload: unknown): ChatMessage[] | null {
@@ -787,7 +891,7 @@ function buildSystemPrompt(user: UserContext | null) {
     "- 'novedades / juegos recién salidos' → search_games con sort='recent'.",
     "- 'mejores juegos de X / top de X' → search_games con sort='score' (+ género/plataforma).",
     "- 'buscar / información sobre <título>' → search_games con query=<título>; si necesitas detalles, get_game_details(slug).",
-    "- 'recomiéndame algo como <título>' → primero search_games para resolver el slug, luego get_similar_games(slug).",
+    "- 'recomiéndame algo como <título>' → primero search_games para resolver el slug, luego get_similar_games(slug). Devuelve varias opciones, no solo una.",
     "",
     "Si una pregunta NO requiere catálogo (lore, historia, mecánicas, opiniones generales), responde directamente sin llamar a herramientas.",
     "",
